@@ -8,7 +8,7 @@
 The authentic Firefox JavaScript engine and networking stack, with no window and no renderer —<br>
 made for web scraping, JS reverse engineering, data collection, and getting past bot checks.
 
-[![PyPI](https://img.shields.io/pypi/v/ruyijs?label=pypi&color=111111&logo=pypi&logoColor=white)](https://pypi.org/project/ruyijs/) [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-111111?logo=python&logoColor=white)](https://pypi.org/project/ruyijs/) [![License](https://img.shields.io/badge/license-Source%20Available-111111)](LICENSE) [![Windows](https://img.shields.io/badge/Windows%20x64-0078D4?logo=windows&logoColor=white)](https://pypi.org/project/ruyijs/) [![LinuxDO](https://img.shields.io/badge/LinuxDO-community-FFB003?logo=discourse&logoColor=white)](https://linux.do/t/topic/3078486)
+[![PyPI](https://img.shields.io/pypi/v/ruyijs?label=pypi&color=111111&logo=pypi&logoColor=white)](https://pypi.org/project/ruyijs/) [![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-000000?logo=apple&logoColor=white)](https://github.com/meng-clb/ruyijs-macos) [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-111111?logo=python&logoColor=white)](https://pypi.org/project/ruyijs/) [![License](https://img.shields.io/badge/license-Source%20Available-111111)](LICENSE) [![Windows](https://img.shields.io/badge/Windows%20x64-0078D4?logo=windows&logoColor=white)](https://pypi.org/project/ruyijs/) [![LinuxDO](https://img.shields.io/badge/LinuxDO-community-FFB003?logo=discourse&logoColor=white)](https://linux.do/t/topic/3078486)
 
 <sub>Sponsored by</sub>
 
@@ -42,7 +42,57 @@ If you scrape, reverse-engineer web JavaScript, or collect data behind a challen
 
 Runs on **Windows x64** with **Python 3.10+** (verified on Python 3.14). The wheel bundles the pinned native runtime, so there's nothing else to download.
 
-## 📦 Installation
+## 🍎 macOS Native Quickstart (Apple Silicon & Intel)
+
+This repository is a **full native macOS port** (Apple Silicon M1/M2/M3/M4 & Intel x86_64):
+- **Native Engine**: Pinned Firefox 159 SpiderMonkey runtime (`dist/js` and `libmozglue.dylib`);
+- **Native Network Worker**: Embedded Go concurrent network worker `dist/ghostfox-worker` with automatic transparent decompression (gzip/deflate) and HTTP/HTTPS proxy support;
+- **Fully Validated**: 100% pass on CreepJS (all 23 fingerprint sections), 100% automated bypass on DataDome plv2 + plv3 interstitial challenge.
+
+### 1. Installation on macOS
+Clone this repository and install the Python SDK in editable mode:
+```sh
+git clone https://github.com/meng-clb/ruyijs-macos.git
+cd ruyijs-macos
+pip install -e .
+```
+
+### 2. Python Quickstart
+```python
+from ruyijs import Context
+
+with Context() as ctx:
+    # Basic JS execution
+    print(ctx.eval("1 + 1"))  # 2
+
+    # DOM manipulation
+    ctx.eval('document.body.innerHTML = "<h1>Hello macOS ruyiJS</h1>"')
+    print(ctx.eval('document.querySelector("h1").textContent'))
+
+    # Network requests (async fetch)
+    ctx.eval("""
+        (async () => {
+            const resp = await fetch('https://httpbin.org/get');
+            window.data = await resp.json();
+        })();
+    """)
+    ctx.advance(200)  # advance event loop to complete network task
+    print(ctx.eval("window.data.url"))
+```
+
+### 3. Running Production Examples
+```sh
+# Run CreepJS full fingerprint verification (0 failures, ~3s)
+python examples/creepjs/creepjs.py --direct
+
+# Run DataDome interstitial device-check (Mouser)
+python examples/DataDome/datadome.py --direct
+
+# Run Akamai BM3 verification
+python examples/akamai/akamai.py --direct
+```
+
+## 📦 Installation (Windows x64)
 
 ```sh
 python -m pip install ruyijs
@@ -244,7 +294,7 @@ Python 3.10 and above on Windows x64 (64-bit). Tested up to Python 3.14.
 <details>
 <summary><b>Does it work on macOS or Linux?</b></summary>
 
-Not yet — currently Windows x64 only. Cross-platform support is planned.
+**Fully supported on macOS natively!** This repository (`ruyijs-macos`) is dedicated to macOS native Apple Silicon (arm64) and Intel (x86_64) platforms, featuring complete native Clang runtime builds, POSIX IPC, and transparent network decompression.
 </details>
 
 <details>

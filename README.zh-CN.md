@@ -8,7 +8,7 @@
 原生的 Firefox JavaScript 引擎与网络栈，没有窗口、没有渲染器 ——<br>
 专为网页抓取、JS 逆向、数据采集与绕过人机验证而生。
 
-[![PyPI](https://img.shields.io/pypi/v/ruyijs?label=pypi&color=111111&logo=pypi&logoColor=white)](https://pypi.org/project/ruyijs/) [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-111111?logo=python&logoColor=white)](https://pypi.org/project/ruyijs/) [![License](https://img.shields.io/badge/license-Source%20Available-111111)](LICENSE) [![Windows](https://img.shields.io/badge/Windows%20x64-0078D4?logo=windows&logoColor=white)](https://pypi.org/project/ruyijs/) [![LinuxDO](https://img.shields.io/badge/LinuxDO-社区-FFB003?logo=discourse&logoColor=white)](https://linux.do/t/topic/3078486)
+[![PyPI](https://img.shields.io/pypi/v/ruyijs?label=pypi&color=111111&logo=pypi&logoColor=white)](https://pypi.org/project/ruyijs/) [![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-000000?logo=apple&logoColor=white)](https://github.com/meng-clb/ruyijs-macos) [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-111111?logo=python&logoColor=white)](https://pypi.org/project/ruyijs/) [![License](https://img.shields.io/badge/license-Source%20Available-111111)](LICENSE) [![Windows](https://img.shields.io/badge/Windows%20x64-0078D4?logo=windows&logoColor=white)](https://pypi.org/project/ruyijs/) [![LinuxDO](https://img.shields.io/badge/LinuxDO-社区-FFB003?logo=discourse&logoColor=white)](https://linux.do/t/topic/3078486)
 
 <sub>赞助商</sub>
 
@@ -42,7 +42,58 @@ Headless Chrome 和 Playwright 给你的是一整个浏览器：一个负责 GPU
 
 运行于 **Windows x64**，需要 **Python 3.10+**（已在 Python 3.14 下验证）。wheel 内置锁定版原生运行时，无需再下载任何东西。
 
-## 📦 安装
+## 🍎 macOS 原生使用指南 (Apple Silicon & Intel)
+
+本项目已实现 **macOS 原生架构完整移植**（原生支持 Apple Silicon M1/M2/M3/M4 系列与 Intel x86_64）：
+- **原生引擎**：基于 Firefox 159 原生编译的 SpiderMonkey 运行时（`dist/js` 与 `libmozglue.dylib`）；
+- **原生网络 Worker**：集成 Go 编写的高性能并发 `dist/ghostfox-worker`，支持自动透明解压 gzip/deflate 与 HTTP/HTTPS 代理；
+- **全量测试通过**：实测 CreepJS 23 项指纹检测 0 失败通过、DataDome plv2+plv3 字节码 VM 挑战 100% 自动穿透。
+
+### 1. 快速安装 (macOS 源码模式)
+在 macOS 上克隆本仓库后，直接以 editable 模式安装 Python SDK：
+```sh
+git clone https://github.com/meng-clb/ruyijs-macos.git
+cd ruyijs-macos
+pip install -e .
+```
+
+### 2. Python 快速上手
+```python
+from ruyijs import Context
+
+# 启动原生沙箱环境
+with Context() as ctx:
+    # 基础 JS 计算
+    print(ctx.eval("1 + 1"))  # 2
+
+    # 完整 DOM 渲染
+    ctx.eval('document.body.innerHTML = "<h1>Hello macOS ruyiJS</h1>"')
+    print(ctx.eval('document.querySelector("h1").textContent'))
+
+    # 网络抓取 (异步 fetch)
+    ctx.eval("""
+        (async () => {
+            const resp = await fetch('https://httpbin.org/get');
+            window.data = await resp.json();
+        })();
+    """)
+    ctx.advance(200)  # 推进事件循环完成网络请求
+    print(ctx.eval("window.data.url"))
+```
+
+### 3. 运行实战案例
+```sh
+# 运行 CreepJS 全量指纹测试 (23 项全通过，耗时约 3 秒)
+python examples/creepjs/creepjs.py --direct
+
+# 运行 DataDome 双层人机防护挑战 (全自动过检测拿 200 首页)
+python examples/DataDome/datadome.py --direct
+
+# 运行 Akamai BM3 挑战
+python examples/akamai/akamai.py --direct
+```
+
+## 📦 安装 (Windows x64)
 
 ```sh
 python -m pip install ruyijs
@@ -244,7 +295,7 @@ Windows x64（64 位）上的 Python 3.10 及以上版本，已测试至 Python 
 <details>
 <summary><b>支持 macOS 或 Linux 吗？</b></summary>
 
-暂不支持，目前仅限 Windows x64。跨平台支持在计划中。
+**macOS 原生全面支持！** 本仓库 `ruyijs-macos` 专门针对 macOS（Apple Silicon arm64 及 Intel x86_64）进行了系统级移植重构，修复了系统符号链接、IPC 通信、Apple Silicon SVE 特性以及网络透明解压。
 </details>
 
 <details>

@@ -153,6 +153,15 @@ def main():
                 (directory / "compression-native/build.json").read_text("utf-8"))
         linked = native.link(objects, executable)
         deployed = native.deploy(destination)
+        if native.is_darwin:
+            worker_src = root / "tools/necko-worker"
+            worker_bin = destination / "ghostfox-worker"
+            if worker_src.is_dir() and not worker_bin.is_file():
+                try:
+                    subprocess.run(["go", "build", "-o", str(worker_bin), "./cmd/necko-worker"],
+                                   cwd=worker_src, check=True)
+                except Exception:
+                    pass
         if sources:
             # The residency proof reads the whole executable; reuse it while unchanged.
             residency = directory / "residency.json"
