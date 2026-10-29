@@ -5,15 +5,23 @@
 #include "js/Object.h"
 #include "js/Realm.h"
 #include "js/Wrapper.h"
+#ifdef _WIN32
 #include <windows.h>
 #include <bcrypt.h>
+#else
+#include <stdlib.h>
+#endif
 
 namespace ruyijs::web_platform {
 namespace {
 bool Uuid(JSContext* cx, std::string* result) {
   unsigned char bytes[16];
+#ifdef _WIN32
   if (BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0)
     return WebKit::Fail(cx, "Object URL random source failed");
+#else
+  arc4random_buf(bytes, sizeof(bytes));
+#endif
   bytes[6] = (bytes[6] & 15) | 64;
   bytes[8] = (bytes[8] & 63) | 128;
   constexpr char hex[] = "0123456789abcdef";

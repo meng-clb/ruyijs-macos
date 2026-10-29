@@ -1,3 +1,4 @@
+#ifdef _WIN32
 // SkMaskGamma: the table Skia applies to a grayscale glyph mask before the
 // 8-bit blend, so the anti-aliased edge follows the same curve the DWrite
 // rendering parameters describe. web_geometry has no Skia, so the luminance
@@ -69,3 +70,5 @@ void GlyphMaskTable(float gamma, float contrast, const uint8_t rgb[3], uint8_t t
   }
 }
 }  // namespace ruyijs::web_geometry
+
+#endif

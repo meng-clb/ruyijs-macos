@@ -17,7 +17,8 @@ def build(native):
     inputs={row['path']:digest(source/row['path']) for row in manifest['files']}
     if any(inputs[row['path']]!=row['sha256'] for row in manifest['files']):
         raise ValueError('Image codec source differs from frozen manifest')
-    compiler=native.compiler()[0]
+    compiler_cmd=native.compiler()
+    compiler=compiler_cmd[0]
     librarian,lib_prefix=native.librarian()
     rustc=native.donor.substs['RUSTC']
     if isinstance(rustc,list):rustc=rustc[0]
@@ -29,8 +30,9 @@ def build(native):
               'librarian':digest(librarian),'include':native.env.get('INCLUDE')}
     signature=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     stamp=directory/'build.json'
-    library=directory/'ruyijs_image_avif.lib'
-    color_library=directory/'ruyijs_image_color.lib'
+    lib_ext = ".a" if native.is_darwin else ".lib"
+    library = directory / f"ruyijs_image_avif{lib_ext}"
+    color_library = directory / f"ruyijs_image_color{lib_ext}" 
     if stamp.is_file() and library.is_file() and not native.incremental['disabled']:
         previous=json.loads(stamp.read_text('utf8'))
         if previous.get('signature')==signature and previous.get('output')==digest(library) and color_library.is_file() and previous.get('colorOutput')==digest(color_library):return [library,color_library]
@@ -43,7 +45,7 @@ def build(native):
           '-I'+str(avif/'include'),'-I'+str(source/'dav1d/include'),'-I'+str(yuv/'include')]))
     yuv_inventory=(yuv/'CMakeLists.txt').read_text('utf8').split('set ( ly_common_source_files',1)[1].split(')',1)[0]
     for name in re.findall(r'\$\{ly_src_dir\}/([^\s]+\.cc)',yuv_inventory):
-        units.append((yuv/'source'/name,'yuv_'+Path(name).stem,['-I'+str(yuv/'include'),'-DLIBYUV_DISABLE_X86=1','-DLIBYUV_DISABLE_NEON=1']))
+        units.append((yuv/'source'/name,'yuv_'+Path(name).stem,['-I'+str(yuv/'include'),'-DLIBYUV_DISABLE_X86=1','-DLIBYUV_DISABLE_NEON=1','-DLIBYUV_DISABLE_SVE=1']))
     dav=source/'dav1d'
     moz=(dav/'moz.build').read_text('utf8')
     c_units=sorted(set(re.findall(r"'../../third_party/dav1d/(src/[^']+\.c)'",moz)))
@@ -56,23 +58,34 @@ def build(native):
         for bits in (8,16):units.append((dav/'src'/unit,f'dav_{bits}_{Path(unit).stem}',flags+[f'-DBITDEPTH={bits}']))
     def compile_one(item):
         path,name,flags=item
-        output=directory/(name+'.obj')
-        language=['-TP','-std:c++17'] if path.suffix=='.cc' else ['-TC','-std:c11']
-        command=[compiler,'-nologo',*language,'-MD','-O2','-Brepro',*flags,'-c',str(path),'-Fo'+str(output)]
+        obj_ext = ".o" if native.is_darwin else ".obj"
+        output=directory/(name+obj_ext)
+        if native.is_darwin:
+            is_cc = path.suffix == '.cc'
+            language = ["-std=c++17"] if is_cc else ["-x", "c", "-std=c11"]
+            clean_cmd = compiler_cmd if is_cc else [arg for arg in compiler_cmd if not arg.startswith("-stdlib=")]
+            clean_flags = [f for f in flags if not f.startswith("-D_WIN32")]
+            command=[*clean_cmd,*language,'-O2','-fPIC',*clean_flags,'-c',str(path),'-o',str(output)]
+        else:
+            language=['-TP','-std:c++17'] if path.suffix=='.cc' else ['-TC','-std:c11']
+            command=[compiler,'-nologo',*language,'-MD','-O2','-Brepro',*flags,'-c',str(path),'-Fo'+str(output)]
         result=subprocess.run(command,cwd=directory,env=native.env,capture_output=True,text=True)
         (directory/(name+'.log')).write_text(result.stdout+result.stderr,'utf8')
         if result.returncode:raise RuntimeError(name+': '+(result.stdout+result.stderr)[-9000:])
         return output,command
     with ThreadPoolExecutor(max_workers=8) as pool:compiled=list(pool.map(compile_one,units))
-    command=[librarian,*lib_prefix,'-OUT:'+str(library),*[str(p) for p,_ in compiled]]
+    command=[librarian,*lib_prefix,str(library),*[str(p) for p,_ in compiled]] if native.is_darwin else [librarian,*lib_prefix,'-OUT:'+str(library),*[str(p) for p,_ in compiled]]
     result=subprocess.run(command,cwd=directory,env=native.env,capture_output=True,text=True)
     if result.returncode:raise RuntimeError(result.stdout+result.stderr)
-    rust_base=[rustc,'--edition=2018','--target=x86_64-pc-windows-msvc','-C','opt-level=2','-C','panic=abort','-C','target-feature=-crt-static']
+    rust_target = str(native.donor.substs.get("target", "aarch64-apple-darwin" if native.is_darwin else "x86_64-pc-windows-msvc"))
+    rust_base = [rustc, "--edition=2018", f"--target={rust_target}", "-C", "opt-level=2", "-C", "panic=abort"]
+    if not native.is_darwin:
+        rust_base += ["-C", "target-feature=-crt-static"]
     rlib=directory/'libqcms.rlib'
     color_rlib=directory/'libruyijs_image_color.rlib'
     commands=[[*rust_base,'--crate-name=qcms','--crate-type=rlib','--cfg','feature="iccv4-enabled"','--cfg','feature="cmyk"',str(source/'qcms/src/lib.rs'),'-o',str(rlib)],
        [*rust_base,'--crate-name=ruyijs_image_color','--crate-type=rlib','--extern','qcms='+str(rlib),str(color_source),'-o',str(color_rlib)],
-       [librarian,*lib_prefix,'-OUT:'+str(color_library),str(color_rlib),str(rlib)]]
+       ([librarian, *lib_prefix, str(color_library), str(color_rlib), str(rlib)] if native.is_darwin else [librarian, *lib_prefix, '-OUT:' + str(color_library), str(color_rlib), str(rlib)])]
     for rust_command in commands:
         result=subprocess.run(rust_command,cwd=directory,env=native.env,capture_output=True,text=True)
         if result.returncode:raise RuntimeError(result.stdout+result.stderr)

@@ -1,6 +1,7 @@
 // Highlight: setlike<AbstractRange> with priority (long) and type (HighlightType).
 // Slots: 0 the backing Set, 1 priority, 2 type index. The shared collection member
 // body (CollectionMember) also serves HighlightRegistry (highlight_registry.cpp).
+#include <cmath>
 #include "web_styling/highlight.h"
 #include "js/CallAndConstruct.h"
 #include "js/Conversions.h"

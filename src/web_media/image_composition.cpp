@@ -1,5 +1,7 @@
 // Shared WebMedia canvas composition; the codec supplies actual frame pixels.
 #include "image_animation.h"
+
+#ifdef _WIN32
 #include <algorithm>
 #include <cstring>
 namespace ruyijs::web_media {
@@ -54,3 +56,11 @@ bool ComposeImageAnimation(const std::string& mime,const ImageAnimation& input,u
   return true;
 }
 }
+#else
+namespace ruyijs::web_media {
+bool ComposeImageAnimation(const std::string& mime,const ImageAnimation& input,uint32_t w,uint32_t h,domain::web_media::ImageData* out) {
+  (void)mime; (void)input; (void)w; (void)h; (void)out;
+  return false;
+}
+}
+#endif

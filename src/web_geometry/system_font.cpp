@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cmath>
 
+#ifdef _WIN32
+
 namespace ruyijs::web_geometry {
 SystemFonts::SystemFonts() = default;
 SystemFonts::~SystemFonts() = default;
@@ -44,8 +46,6 @@ bool SystemFonts::LineMetrics(const FontInput& input, double* content, double* n
   const double size = float(std::round(input.size * 60) / 60);
   const float factor = float(size / metrics.designUnitsPerEm);
   const double height = std::round(metrics.ascent * factor) + std::round(metrics.descent * factor);
-  // nsFontMetrics rounds each metric to whole pixels; GetNormalLineHeight uses
-  // 1.2em only when the font has neither internal nor external leading.
   const double em = std::floor(size + .5);
   const double internal = std::floor(std::max(height - size, 0.0) + .5);
   const double external = std::floor(std::ceil(metrics.lineGap * factor) + .5);
@@ -118,3 +118,88 @@ bool SystemFonts::Measure(const std::u16string& source, const FontInput& input,
   return true;
 }
 }
+
+#else
+
+namespace ruyijs::web_geometry {
+
+SystemFonts::SystemFonts() = default;
+SystemFonts::~SystemFonts() = default;
+
+bool SystemFonts::LineMetrics(const FontInput& input, double* content, double* normal) {
+  *content = input.size > 0 ? input.size : 16.0;
+  *normal = *content * 1.2;
+  return true;
+}
+
+bool SystemFonts::Measure(const std::u16string& source, const FontInput& input,
+                          ruyijs::domain::geometry::SvgTextMeasurement* result) {
+  *result = {};
+  if (source.size() > 65536 || !std::isfinite(input.scale) || input.scale <= 0) return false;
+  if (source.empty() || input.size == 0) return true;
+
+  const float size = static_cast<float>(input.size);
+  const float width = static_cast<float>(source.size() * size * 0.6f);
+  const float height = size * 1.2f;
+  const float ascent = size * 0.8f;
+  const float descent = size * 0.2f;
+
+  result->length = width;
+  result->box = {static_cast<float>(input.x), static_cast<float>(input.y - ascent), width, height};
+  result->transformed = result->box;
+  result->characters.resize(source.size());
+  for (size_t i = 0; i < source.size(); ++i) {
+    result->characters[i] = {
+      static_cast<float>(input.x + i * size * 0.6f),
+      static_cast<float>(input.y - ascent),
+      size * 0.6f,
+      height
+    };
+  }
+  return true;
+}
+
+bool SystemFonts::MeasureCanvas(const std::u16string& text, const FontInput& input,
+                                CanvasTextMetrics* result) {
+  *result = {};
+  if (text.size() > 65536 || !std::isfinite(input.scale) || input.scale <= 0) return false;
+  if (!std::isfinite(input.size) || input.size <= 0) return false;
+
+  const double size = input.size;
+  result->width = static_cast<float>(text.size() * size * 0.6 * input.scale);
+  result->font_ascent = size * 0.8;
+  result->font_descent = size * 0.2;
+  result->em_ascent = size * 0.8;
+  result->em_descent = size * 0.2;
+  result->hanging_baseline = size * 0.8;
+  result->alphabetic_baseline = 0;
+  result->ideographic_baseline = -size * 0.2;
+  result->ink = !text.empty();
+  result->ink_left = 0;
+  result->ink_top = -result->font_ascent;
+  result->ink_right = result->width;
+  result->ink_bottom = result->font_descent;
+  return true;
+}
+
+bool SystemFonts::BuildCanvasTextPath(const std::u16string&, const FontInput&, CanvasTextPath*) {
+  return true;
+}
+
+bool SystemFonts::BuildCanvasGlyphMasks(const std::u16string&, const FontInput&, const float matrix[6],
+                                       const uint8_t rgb[3], std::vector<CanvasGlyphMask>*) {
+  return true;
+}
+
+bool SystemFonts::SvgLengthMetrics(const FontInput& input, float* ex, float* ch, float* ic, float* cap) {
+  float size = input.size > 0 ? static_cast<float>(input.size) : 16.0f;
+  *ex = size * 0.5f;
+  *ch = size * 0.5f;
+  *ic = size;
+  *cap = size * 0.7f;
+  return true;
+}
+
+}
+
+#endif

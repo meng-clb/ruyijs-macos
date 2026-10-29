@@ -7,7 +7,13 @@
 #include "jsapi.h"
 #include "js/Array.h"
 #include "js/PropertyAndElement.h"
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <codecvt>
+#include <locale>
+#include <cwctype>
+#endif
 #include <map>
 #include <mutex>
 #include <set>
@@ -29,10 +35,15 @@ std::wstring Lower(const std::wstring& text) {
   return out;
 }
 std::wstring Wide(const std::string& utf8) {
+#ifdef _WIN32
   const int size = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), int(utf8.size()), nullptr, 0);
   std::wstring out(size, L'\0');
   if (size) MultiByteToWideChar(CP_UTF8, 0, utf8.data(), int(utf8.size()), out.data(), size);
   return out;
+#else
+  std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
+  return conv.from_bytes(utf8);
+#endif
 }
 bool Text(JSContext* cx, JS::HandleValue value, std::string* out) {
   JS::RootedString text(cx, value.toString());

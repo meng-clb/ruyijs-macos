@@ -15,7 +15,7 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-TARGET = 'x86_64-pc-windows-msvc'
+DEFAULT_TARGET = 'x86_64-pc-windows-msvc'
 
 
 def digest(path):
@@ -53,6 +53,7 @@ def build(native):
     source = native.root / 'vendor/urlpattern-native'
     directory = native.directory / 'urlpattern-native'
     directory.mkdir(parents=True, exist_ok=True)
+    target = str(native.donor.substs.get('target', 'aarch64-apple-darwin' if native.is_darwin else DEFAULT_TARGET))
     rustc = native.donor.substs['RUSTC']
     cargo = native.donor.substs['CARGO']
     rustc = rustc[0] if isinstance(rustc, list) else rustc
@@ -73,9 +74,10 @@ def build(native):
             (index[(name, version)] / '.cargo-checksum.json').read_text('utf8')).get('package')
             for name, version in wanted},
         'rustcSHA256': digest(rustc), 'cargoSHA256': digest(cargo),
-        'librarianSHA256': digest(librarian), 'target': TARGET}
+        'librarianSHA256': digest(librarian), 'target': target}
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-    library = directory / 'ruyijs_urlpattern.lib'
+    lib_ext = '.a' if native.is_darwin else '.lib'
+    library = directory / f'ruyijs_urlpattern{lib_ext}'
     stamp = directory / 'build.json'
     if stamp.is_file():
         old = json.loads(stamp.read_text('utf8'))
@@ -96,7 +98,7 @@ def build(native):
     env['RUSTC'] = rustc
     env['CARGO_HOME'] = str(directory / 'cargo-home')
     target_dir = directory / 'target'
-    command = [cargo, 'build', '--release', '--offline', '--locked', '--target', TARGET,
+    command = [cargo, 'build', '--release', '--offline', '--locked', '--target', target,
                '--manifest-path', str(source / 'Cargo.toml'), '--target-dir', str(target_dir),
                '--config', "source.crates-io.replace-with='donor'",
                '--config', "source.donor.directory='" + mirror.as_posix() + "'"]
@@ -104,10 +106,10 @@ def build(native):
     (directory / 'cargo.log').write_text(completed.stdout + completed.stderr, 'utf8')
     if completed.returncode:
         raise RuntimeError('urlpattern cargo build: ' + (completed.stdout + completed.stderr)[-10000:])
-    rlibs = sorted(str(p) for p in (target_dir / TARGET / 'release/deps').glob('*.rlib'))
+    rlibs = sorted(str(p) for p in (target_dir / target / 'release/deps').glob('*.rlib'))
     if library.exists():
         library.unlink()
-    archived = subprocess.run([librarian, *lib_prefix, '-OUT:' + str(library), *rlibs], cwd=directory, env=env,
+    archived = subprocess.run(([librarian, *lib_prefix, str(library), *rlibs] if native.is_darwin else [librarian, *lib_prefix, '-OUT:' + str(library), *rlibs]), cwd=directory, env=env,
                               capture_output=True, text=True)
     (directory / 'archive.log').write_text(archived.stdout + archived.stderr, 'utf8')
     if archived.returncode:

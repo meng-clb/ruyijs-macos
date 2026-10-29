@@ -1,3 +1,4 @@
+#include <cmath>
 #include "document_model/model_internal.h"
 #include "domain/document_model/input_validity.h"
 #include "domain/document_model/input_radio_group.h"

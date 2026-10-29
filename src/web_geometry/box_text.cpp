@@ -1,3 +1,4 @@
+#include <cmath>
 #include "web_geometry/box_input.h"
 #include "domain/styling/css_numeric_value.h"
 #include "web_geometry/font_config.h"

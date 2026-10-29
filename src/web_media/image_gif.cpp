@@ -1,5 +1,7 @@
 // GIF frames returned by WIC are frame rectangles, so compose onto the canvas.
 #include "web_media/image_wic.h"
+
+#ifdef _WIN32
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -62,3 +64,4 @@ bool GifFrames(IWICImagingFactory* factory, IWICBitmapDecoder* decoder,
   return true;
 }
 }
+#endif

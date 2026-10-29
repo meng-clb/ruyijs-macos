@@ -3,7 +3,22 @@
 #include "web_workers/clone.h"
 #include "runtime/pipe.h"
 #include "jsapi.h"
+
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <unistd.h>
+#include <time.h>
+using ULONGLONG = uint64_t;
+static inline ULONGLONG GetTickCount64() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return static_cast<ULONGLONG>(ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
+}
+static inline void Sleep(uint32_t ms) {
+  usleep(ms * 1000);
+}
+#endif
 
 namespace ruyijs::web_workers {
 PipeResult Child::NextFrame(std::string* frame, bool* received) {

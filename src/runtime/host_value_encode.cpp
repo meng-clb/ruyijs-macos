@@ -64,7 +64,7 @@ bool HostValues::Visit(JS::HandleValue input,bool toPython,JS::HandleValue recei
   if(value.isUndefined()||value.isBigInt())value.setNull();
   if(value.isSymbol()){
     JS::RootedSymbol symbol(cx_,value.toSymbol());
-    JS::RootedString text(cx_,JS::GetSymbolDescription(symbol));
+    JS::RootedString text(cx_,JS::GetSymbolDescription(cx_,symbol));
     if(!text)text=JS_GetEmptyString(cx_);
     JS::RootedString prefix(cx_,JS_NewStringCopyZ(cx_,"Symbol(")),suffix(cx_,JS_NewStringCopyZ(cx_,")"));
     if(!prefix||!suffix)return false;

@@ -1,4 +1,6 @@
 #include "web_workers/process.h"
+
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -14,15 +16,11 @@ bool Process::Queue(std::string frame) {
 }
 PipeResult Process::Poll(std::string* frame, bool* received) {
   const auto result = pipe_.Poll(frame, received);
-  // Drain already-completed messages before noticing an exited child. A child
-  // can exit before connecting, in which case accept would remain pending.
   if (!*received && result == PipeResult::Pending && !pipe_.connected() && !Running())
     return PipeResult::Closed;
   return result;
 }
 bool Process::Stop() {
-  // Closing the Job also covers descendants when its immediate child already
-  // exited. The direct termination covers a failed Job assignment at startup.
   if (job_) { CloseHandle(job_);job_ = nullptr; }
   bool stopped = true;
   if (process_) {
@@ -34,3 +32,46 @@ bool Process::Stop() {
   return stopped;
 }
 }
+
+#else
+
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <unistd.h>
+
+namespace ruyijs::web_workers {
+Process::~Process() { Stop(); }
+bool Process::Running() const {
+  if (!process_) return false;
+  pid_t pid = static_cast<pid_t>(reinterpret_cast<intptr_t>(process_));
+  int status = 0;
+  pid_t r = waitpid(pid, &status, WNOHANG);
+  return r == 0;
+}
+unsigned Process::id() const {
+  return process_ ? static_cast<unsigned>(reinterpret_cast<intptr_t>(process_)) : 0;
+}
+bool Process::Queue(std::string frame) {
+  return Running() && pipe_.Queue(std::move(frame));
+}
+PipeResult Process::Poll(std::string* frame, bool* received) {
+  const auto result = pipe_.Poll(frame, received);
+  if (!*received && result == PipeResult::Pending && !pipe_.connected() && !Running())
+    return PipeResult::Closed;
+  return result;
+}
+bool Process::Stop() {
+  if (process_) {
+    pid_t pid = static_cast<pid_t>(reinterpret_cast<intptr_t>(process_));
+    if (Running()) kill(pid, SIGKILL);
+    int status;
+    waitpid(pid, &status, 0);
+    process_ = nullptr;
+  }
+  pipe_.Close();
+  return true;
+}
+}
+
+#endif

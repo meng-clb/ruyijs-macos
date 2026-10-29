@@ -67,7 +67,7 @@ std::string Render(JSContext* cx, JS::HandleValue value) {
   }
   if (value.isSymbol()) {
     JS::RootedSymbol symbol(cx, value.toSymbol());
-    JS::RootedString description(cx, JS::GetSymbolDescription(symbol));
+    JS::RootedString description(cx, JS::GetSymbolDescription(cx, symbol));
     return "Symbol(" + Utf8(cx, description, State::kLabelLimit) + ")";
   }
   return LabelText(cx, value);

@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #include "runtime/pipe_async.h"
 
 namespace ruyijs {
@@ -69,3 +70,19 @@ PipeResult PipeIo(HANDLE pipe, PipeOperation& op, bool writing,
   return *transferred ? PipeResult::Ready : PipeResult::Closed;
 }
 }
+
+#else
+#include "runtime/pipe_async.h"
+
+namespace ruyijs {
+PipeResult PipeError(DWORD /*error*/) { return PipeResult::Failed; }
+void CancelPipeOperation(HANDLE /*pipe*/, PipeOperation& operation) { operation.pending = false; }
+bool Pipe::ListenAsync(const char* name) { return Listen(name); }
+bool Pipe::ConnectAsync(const char* name) { return Connect(name); }
+PipeResult PipeAccept(HANDLE /*pipe*/, PipeAsync& state) { state.connected = true; return PipeResult::Ready; }
+PipeResult PipeIo(HANDLE /*pipe*/, PipeOperation& /*op*/, bool /*writing*/,
+                   void* /*bytes*/, DWORD /*size*/, DWORD* /*transferred*/) {
+  return PipeResult::Failed;
+}
+}  // namespace ruyijs
+#endif

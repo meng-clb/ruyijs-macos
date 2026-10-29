@@ -1,6 +1,7 @@
 // SkLineClipper.cpp and the buffer half of SkEdgeClipper: the clipped segment
 // list Skia builds before it constructs edges, plus the line clip that turns the
 // parts outside the clip into vertical edges on the boundary.
+#include <cmath>
 #include <algorithm>
 #include <cstring>
 

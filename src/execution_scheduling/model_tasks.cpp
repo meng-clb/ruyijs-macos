@@ -1,3 +1,4 @@
+#include <cmath>
 #include "execution_scheduling/model_internal.h"
 #include <algorithm>
 #include <climits>

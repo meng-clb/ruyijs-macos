@@ -1,7 +1,11 @@
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 #include "runtime/pipe_async.h"
 #include <new>
 
 namespace ruyijs {
+#ifdef _WIN32
 PipeAsync::PipeAsync() {
   accept.value.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
   read.value.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
@@ -15,6 +19,11 @@ PipeAsync::~PipeAsync() {
 bool PipeAsync::Valid() const {
   return accept.value.hEvent && read.value.hEvent && write.value.hEvent;
 }
+#else
+PipeAsync::PipeAsync() = default;
+PipeAsync::~PipeAsync() = default;
+bool PipeAsync::Valid() const { return true; }
+#endif
 PipeAsync* NewPipeAsync() {
   try {
     auto* state = new PipeAsync;
@@ -25,16 +34,26 @@ PipeAsync* NewPipeAsync() {
 }
 void Pipe::Close() {
   if (async_) {
+#ifdef _WIN32
     if (handle_) {
       CancelIoEx(handle_, nullptr);
       CancelPipeOperation(handle_, async_->accept);
       CancelPipeOperation(handle_, async_->read);
       CancelPipeOperation(handle_, async_->write);
     }
+#endif
     delete async_;
     async_ = nullptr;
   }
+#ifdef _WIN32
   if (handle_) { CloseHandle(handle_); handle_ = nullptr; }
+#else
+  if (handle_) {
+    int fd = static_cast<int>(reinterpret_cast<intptr_t>(handle_));
+    if (fd >= 0) ::close(fd);
+    handle_ = nullptr;
+  }
+#endif
 }
 bool Pipe::Queue(std::string frame) {
   if (!async_ || !ValidFrameSize(frame.size()) ||

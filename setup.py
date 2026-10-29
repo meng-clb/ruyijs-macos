@@ -30,8 +30,8 @@ class BuildPython(build_py):
         return sorted(set(outputs))
 
     def run(self):
-        if sys.platform != "win32" or platform.machine().lower() not in ("amd64", "x86_64"):
-            raise RuntimeError("ruyijs requires Windows x64 and a 64-bit Python installation")
+        if sys.platform not in ("win32", "darwin") or platform.machine().lower() not in ("amd64", "x86_64", "arm64", "aarch64"):
+            raise RuntimeError("ruyijs requires Windows x64 or macOS and a 64-bit Python installation")
         if sys.maxsize <= 2 ** 32:
             raise RuntimeError("ruyijs requires 64-bit Python")
         super().run()

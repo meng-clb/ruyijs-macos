@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 # Support running from source tree
 RUYIJS_ROOT = ROOT.parents[1]
-if (RUYIJS_ROOT / "dist" / "js.exe").is_file():
+if (RUYIJS_ROOT / "dist" / "js.exe").is_file() or (RUYIJS_ROOT / "dist" / "js").is_file():
     sys.path.insert(0, str(RUYIJS_ROOT / "python"))
 try:
     from ruyijs import Context, JSError

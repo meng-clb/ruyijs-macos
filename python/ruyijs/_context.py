@@ -92,20 +92,33 @@ class Context(EnvironmentControl, SchedulingControl, RandomControl, ResourceCont
         self._host_callback_sequence = 0
         self._closed, self._pipe, self._process, self._stderr = True, None, None, None
         selected = shell or os.environ.get("RUYIJS_SHELL")
+        executable_name = "js.exe" if os.name == "nt" else "js"
         self.shell = (Path(selected).resolve() if selected else
-                      get_runtime_path() / "dist" / "js.exe")
+                      get_runtime_path() / "dist" / executable_name)
         if not self.shell.is_file():
-            raise FileNotFoundError(f"ruyijs shell does not exist: {self.shell}")
+            alt_name = "js" if os.name == "nt" else "js.exe"
+            alt_shell = self.shell.parent / alt_name
+            if alt_shell.is_file():
+                self.shell = alt_shell
+            else:
+                raise FileNotFoundError(f"ruyijs shell does not exist: {self.shell}")
         _prefer_bundled_crt(self.shell)
         try:
             self._pipe = Pipe()
             self._stderr = tempfile.TemporaryFile()
+            popen_kwargs = {
+                "stdin": subprocess.DEVNULL,
+                "stdout": subprocess.DEVNULL,
+                "stderr": self._stderr,
+                "close_fds": True,
+                "env": child_environment,
+            }
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
             self._process = subprocess.Popen(
                 [str(self.shell), "--ruyijs-rpc", self._pipe.name,
                  "--ruyijs-mode", mode],
-                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=self._stderr,
-                creationflags=subprocess.CREATE_NO_WINDOW, close_fds=True,
-                env=child_environment,
+                **popen_kwargs,
             )
             self._pipe.connect(time.monotonic() + self.timeout)
             self._closed = False

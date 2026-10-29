@@ -33,7 +33,7 @@ bool InOrder(JSContext* cx, JS::HandleObject prototype, const BindingOrderEntry&
   for (size_t i = 0; i < keys.length(); ++i) {
     // Symbols compare as "@@<name>" ("Symbol.iterator" -> "@@iterator").
     JS::RootedString name(cx, keys[i].isString() ? keys[i].toString()
-        : JS::GetSymbolDescription(JS::RootedSymbol(cx, keys[i].toSymbol())));
+        : JS::GetSymbolDescription(cx, JS::RootedSymbol(cx, keys[i].toSymbol())));
     if (!name) continue;
     JS::UniqueChars raw = JS_EncodeStringToUTF8(cx, name);
     if (!raw) return false;

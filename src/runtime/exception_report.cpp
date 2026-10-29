@@ -123,7 +123,7 @@ ExceptionReport DescribeException(JSContext* cx, JS::HandleValue value,
     }
   } else if (value.isSymbol()) {
     JS::Rooted<JS::Symbol*> symbol(cx, value.toSymbol());
-    JS::RootedString description(cx, JS::GetSymbolDescription(symbol));
+    JS::RootedString description(cx, JS::GetSymbolDescription(cx, symbol));
     if (description) StringMessage(cx, description, &result, 4088);
     else { result.message = ""; result.hasMessageUnits = true; }
     result.message = "Symbol(" + result.message + ")";

@@ -1,4 +1,6 @@
 #include "web_workers/process.h"
+
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -54,3 +56,60 @@ StartResult Process::Start(std::wstring_view executable, std::string initial, Wo
   } catch (...) { return fail(StartError::Allocation); }
 }
 }
+
+#else
+
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <codecvt>
+#include <locale>
+#include <vector>
+
+namespace ruyijs::web_workers {
+StartResult Process::Start(std::wstring_view executable, std::string initial, WorkerKind kind) noexcept {
+  if (process_) return {StartError::Active};
+  if (executable.empty() || !Pipe::ValidFrameSize(initial.size()))
+    return {StartError::InvalidInput};
+  auto fail = [this](StartError error, unsigned system = 0) {
+    Stop(); return StartResult{error, system};
+  };
+  try {
+    uint8_t random[16];
+    arc4random_buf(random, sizeof(random));
+    std::string name = "/tmp/ruyijs-worker-";
+    for (uint8_t byte : random) {
+      name += "0123456789abcdef"[byte >> 4];
+      name += "0123456789abcdef"[byte & 15];
+    }
+    if (!pipe_.ListenAsync(name.c_str()) || !pipe_.Queue(std::move(initial)))
+      return fail(StartError::Pipe);
+
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
+    std::string exe = conv.to_bytes(std::wstring(executable));
+
+    pid_t p = fork();
+    if (p < 0) return fail(StartError::Create);
+    if (p == 0) {
+      std::vector<const char*> args;
+      args.push_back(exe.c_str());
+      args.push_back("--ruyijs-worker");
+      args.push_back(name.c_str());
+      if (kind == WorkerKind::Service) {
+        args.push_back("--ruyijs-worker-kind");
+        args.push_back("service");
+      } else if (kind == WorkerKind::Shared) {
+        args.push_back("--ruyijs-worker-kind");
+        args.push_back("shared");
+      }
+      args.push_back(nullptr);
+      execv(exe.c_str(), const_cast<char* const*>(args.data()));
+      _exit(127);
+    }
+    process_ = reinterpret_cast<void*>(static_cast<intptr_t>(p));
+    return {};
+  } catch (...) { return fail(StartError::Allocation); }
+}
+}
+
+#endif

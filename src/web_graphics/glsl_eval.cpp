@@ -1,6 +1,7 @@
 // The expression evaluator of the shader subset: numbers, identifiers with an
 // optional swizzle, type constructors, parentheses, and + - * / on values whose
 // component counts match. Everything else fails the evaluation.
+#include <cctype>
 #include "web_graphics/glsl.h"
 
 #include <cstdlib>

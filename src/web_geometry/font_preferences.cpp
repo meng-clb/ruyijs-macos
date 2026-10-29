@@ -3,15 +3,25 @@
 #include "web_geometry/font_config.h"
 #include <cstring>
 #include <mutex>
+#ifdef _WIN32
 #pragma comment(lib, "user32.lib")  // SystemParametersInfoW (system-ui menu font)
+#else
+#include <codecvt>
+#include <locale>
+#endif
 
 namespace ruyijs::web_geometry {
 namespace {
 std::wstring Wide(const std::string& text) {
+#ifdef _WIN32
   const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), int(text.size()), nullptr, 0);
   std::wstring result(size, L'\0');
   MultiByteToWideChar(CP_UTF8, 0, text.data(), int(text.size()), result.data(), size);
   return result;
+#else
+  std::wstring_convert<std::codecvt_utf8<wchar_t>> conv;
+  return conv.from_bytes(text);
+#endif
 }
 std::mutex g_language_lock;
 std::string g_language;  // The browser locale; the OS locale when unset.
@@ -22,9 +32,13 @@ std::string Group(const std::string& language) {
     value = g_language;
   }
   if (value.empty()) {
+#ifdef _WIN32
     wchar_t locale[LOCALE_NAME_MAX_LENGTH]{};
     if (GetUserDefaultLocaleName(locale, LOCALE_NAME_MAX_LENGTH))
       for (wchar_t ch : locale) { if (!ch) break; value += char(ch); }
+#else
+    value = "en-US";
+#endif
   }
   for (char& ch : value) if (ch >= 'A' && ch <= 'Z') ch += 'a'-'A';
   if (value.starts_with("zh"))
@@ -60,9 +74,13 @@ void Split(const std::string& value, std::vector<std::wstring>* out,
 }
 // LookAndFeel's StyleSystemFont::Menu on Windows: the non-client menu font.
 std::wstring MenuFont() {
+#ifdef _WIN32
   NONCLIENTMETRICSW metrics{}; metrics.cbSize = sizeof(metrics);
   if (!SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0)) return {};
   return metrics.lfMenuFont.lfFaceName;
+#else
+  return L"Helvetica Neue";
+#endif
 }
 }
 void SetBrowserLanguage(const std::string& language) {

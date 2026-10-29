@@ -1,6 +1,7 @@
 // OffscreenCanvas: an offscreen image surface with its own 2D context and a
 // convertToBlob promise. It shares the realm-owned canvas binding list with
 // HTMLCanvasElement, so its 2D context reads and writes the same RGBA store.
+#include <cmath>
 #include "web_canvas/internal.h"
 
 #include <cstring>

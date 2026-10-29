@@ -1,3 +1,4 @@
+#ifdef _WIN32
 // The glyph masks of one fillText. The run split is the shaping owner's (same
 // fonts, same segments as the outline producer), and every glyph becomes the
 // device-space mask Firefox hands to its mask blitter: the position is snapped
@@ -127,3 +128,5 @@ bool SystemFonts::BuildCanvasGlyphMasks(const std::u16string& text, const FontIn
   return true;
 }
 }  // namespace ruyijs::web_geometry
+
+#endif

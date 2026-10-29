@@ -24,7 +24,7 @@ from time import monotonic
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.dont_write_bytecode = True
-if (ROOT / "dist" / "js.exe").is_file() or os.environ.get("RUYIJS_SHELL"):
+if (ROOT / "dist" / "js.exe").is_file() or (ROOT / "dist" / "js").is_file() or os.environ.get("RUYIJS_SHELL"):
     sys.path.insert(0, str(ROOT / "python"))
 from ruyijs import Context, JSError
 

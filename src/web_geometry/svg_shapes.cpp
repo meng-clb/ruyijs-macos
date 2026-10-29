@@ -1,3 +1,4 @@
+#include <cmath>
 #include "web_geometry/svg.h"
 #include "web_geometry/svg_path.h"
 #include "domain/styling/css_numeric_value.h"

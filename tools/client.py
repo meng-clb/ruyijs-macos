@@ -9,6 +9,11 @@ from provenance import digest
 
 
 def build_client(native, destination):
+    if native.is_darwin:
+        include = destination / "include"
+        include.mkdir(exist_ok=True)
+        shutil.copy2(native.root / "src/client/ruyijs.h", include / "ruyijs.h")
+        return {"status": "skipped", "reason": "Darwin client C library skipped for runtime"}
     sources = sorted((native.root / "src/client").glob("*.cpp"))
     if not sources:
         raise ValueError("src/client must contain implementation files")

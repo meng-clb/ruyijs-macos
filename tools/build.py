@@ -75,7 +75,9 @@ def main():
         native = Native(donor, root, directory, args)
         objects = donor.objects()
         inputs = donor.source_inputs() + objects + donor.libraries()
-        inputs += [donor.obj / "dist/bin/js.exe", donor.obj / "dist/bin/mozglue.dll"]
+        js_bin = donor.obj / ("dist/bin/js.exe" if donor.os_arch == "WINNT" else "dist/bin/js")
+        mozglue_bin = donor.obj / ("dist/bin/mozglue.dll" if donor.os_arch == "WINNT" else "dist/bin/libmozglue.dylib")
+        inputs += [js_bin, mozglue_bin]
         inputs += list((root / "tools").glob("*.py"))
         sources = []
         if not args.pristine:
@@ -113,10 +115,10 @@ def main():
             inputs += [path for path in (root / "vendor/compression-native").rglob("*") if path.is_file()]
             inputs += [path for path in (root / "vendor/image-native").rglob("*") if path.is_file()]
         report.update(donor=str(donor.obj), source=str(donor.src),
-                      executable=str(destination / "js.exe"),
+                      executable=str(destination / ("js.exe" if donor.os_arch == "WINNT" else "js")),
                       inputs=inventory(inputs),
                       compiler=native.compiler(), linker=native.linker(),
-                      include=native.env["INCLUDE"],
+                      include=native.env.get("INCLUDE", ""),
                       library_paths=donor.libpaths(args.vs_root),
                       runtime_dll_dir=args.runtime_dll_dir)
         if args.prepare_only:
@@ -124,7 +126,8 @@ def main():
             return 0
         native.check_tools(compile_needed=bool(sources))
         if sources:
-            original = donor.shell / "Unified_cpp_js_src_shell0.obj"
+            obj_ext = ".obj" if donor.os_arch == "WINNT" else ".o"
+            original = donor.shell / ("Unified_cpp_js_src_shell0" + obj_ext)
             if objects.count(original) != 1:
                 raise ValueError("shell0 object must occur once in donor list")
             objects.remove(original)
@@ -134,11 +137,17 @@ def main():
                         exceptions=product_sources.needs_exceptions(source))
             with ThreadPoolExecutor(max_workers=args.jobs) as pool:
                 objects += list(pool.map(compile_unit, sources))
-        executable = destination / os.environ.get("RUYIJS_OUTPUT_NAME", "js.exe")
+        executable = destination / os.environ.get("RUYIJS_OUTPUT_NAME", "js.exe" if donor.os_arch == "WINNT" else "js")
         if not args.pristine:
-            objects += compression_native.build(native)
-            objects += urlpattern_native.build(native)
-            objects += image_native.build(native)
+            if native.is_darwin:
+                comp_libs = compression_native.build(native)
+                objects += [p for p in comp_libs if "zlib" not in p.name]
+                img_libs = image_native.build(native)
+                objects += [p for p in img_libs if "color" not in p.name]
+            else:
+                objects += compression_native.build(native)
+                objects += urlpattern_native.build(native)
+                objects += image_native.build(native)
             report["imageCodecs"] = json.loads((directory / "image-native/build.json").read_text("utf-8"))
             report["compressionCodecs"] = json.loads(
                 (directory / "compression-native/build.json").read_text("utf-8"))

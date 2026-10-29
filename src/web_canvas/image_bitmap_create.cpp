@@ -1,6 +1,7 @@
 // Window.createImageBitmap over this owner's own pixel stores (WEB_CANVAS.md
 // slice 25): canvas, OffscreenCanvas, ImageBitmap and ImageData sources, the
 // crop rectangle and resizeWidth/resizeHeight, with Firefox's errors.
+#include <cmath>
 #include "web_canvas/internal.h"
 #include "document_model/state.h"
 #include "web_media/image_codec.h"

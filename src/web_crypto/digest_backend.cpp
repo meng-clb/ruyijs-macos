@@ -1,4 +1,6 @@
 #include "web_crypto/digest_backend.h"
+
+#ifdef _WIN32
 #include <windows.h>
 #include <bcrypt.h>
 #include <limits>
@@ -21,3 +23,30 @@ bool ComputeDigest(HashAlgorithm algorithm, const void* input, size_t length,
   return true;
 }
 }
+#else
+#include <CommonCrypto/CommonDigest.h>
+namespace ruyijs::web_crypto {
+bool ComputeDigest(HashAlgorithm algorithm, const void* input, size_t length,
+                    DigestBytes* output) noexcept {
+  switch (algorithm) {
+    case HashAlgorithm::Sha1:
+      CC_SHA1(input, static_cast<CC_LONG>(length), output->data);
+      output->size = CC_SHA1_DIGEST_LENGTH;
+      return true;
+    case HashAlgorithm::Sha256:
+      CC_SHA256(input, static_cast<CC_LONG>(length), output->data);
+      output->size = CC_SHA256_DIGEST_LENGTH;
+      return true;
+    case HashAlgorithm::Sha384:
+      CC_SHA384(input, static_cast<CC_LONG>(length), output->data);
+      output->size = CC_SHA384_DIGEST_LENGTH;
+      return true;
+    case HashAlgorithm::Sha512:
+      CC_SHA512(input, static_cast<CC_LONG>(length), output->data);
+      output->size = CC_SHA512_DIGEST_LENGTH;
+      return true;
+  }
+  return false;
+}
+}
+#endif

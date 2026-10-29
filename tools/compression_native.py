@@ -26,7 +26,8 @@ def build(native):
         rustc = rustc[0]
     if not Path(rustc).is_file():
         raise RuntimeError('The configured donor rustc is required: ' + rustc)
-    compiler = native.compiler()[0]
+    compiler_cmd = native.compiler()
+    compiler = compiler_cmd[0]
     librarian, lib_prefix = native.librarian()
     tools = {path: subprocess.run([path, '--version'], capture_output=True,
              text=True, check=True).stdout for path in (rustc, compiler)}
@@ -36,10 +37,11 @@ def build(native):
                 'donorConfigSHA256': digest(native.donor.config_path),
                 'include': native.env.get('INCLUDE'),
                 'prefix': 'RUYIJS_CS_Z_', 'crt': 'dynamic',
-                'target': 'x86_64-pc-windows-msvc'}
+                'target': str(native.donor.substs.get('target', 'aarch64-apple-darwin' if native.is_darwin else 'x86_64-pc-windows-msvc'))}
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
     stamp = directory / 'build.json'
-    libs = [directory / 'ruyijs_cs_zlib.lib', directory / 'ruyijs_cs_brotli.lib']
+    lib_ext = ".a" if native.is_darwin else ".lib"
+    libs = [directory / f"ruyijs_cs_zlib{lib_ext}", directory / f"ruyijs_cs_brotli{lib_ext}"]
     if stamp.is_file():
         old = json.loads(stamp.read_text('utf8'))
         if not native.incremental['disabled'] and old.get('signature') == signature and all(
@@ -58,8 +60,11 @@ def build(native):
         if completed.returncode:
             raise RuntimeError(name + ': ' + (completed.stdout + completed.stderr)[-10000:])
 
-    base = [rustc, '--edition=2021', '--target=x86_64-pc-windows-msvc',
-            '-C', 'opt-level=2', '-C', 'panic=abort', '-C', 'target-feature=-crt-static']
+    rust_target = str(native.donor.substs.get("target", "aarch64-apple-darwin" if native.is_darwin else "x86_64-pc-windows-msvc"))
+    base = [rustc, "--edition=2021", f"--target={rust_target}",
+            "-C", "opt-level=2", "-C", "panic=abort"]
+    if not native.is_darwin:
+        base += ["-C", "target-feature=-crt-static"]
     def features(*names):
         return [item for name in names for item in ('--cfg', 'feature="' + name + '"')]
     rlib = directory / 'libzlib_rs.rlib'
@@ -74,18 +79,27 @@ def build(native):
     # One Rust std/global allocator already belongs to donor jsrust. Rlibs emit
     # library code without a new executable-level allocator shim; archive only
     # our two crates and let that original runtime satisfy their dependencies.
-    run([librarian, *lib_prefix, '-OUT:' + str(libs[0]), str(abi), str(rlib)], 'archive_zlib')
+    archive_cmd1 = [librarian, *lib_prefix, str(libs[0]), str(abi), str(rlib)] if native.is_darwin else [librarian, *lib_prefix, "-OUT:" + str(libs[0]), str(abi), str(rlib)]
+    run(archive_cmd1, "archive_zlib")
     # Exact moz.build source inventory; separate TUs retain upstream semantics.
     units = re.findall(r"'((?:common|dec|enc)/[^']+\.c)'",
                        (source / 'brotli/moz.build').read_text('utf8'))
     objects = []
     for unit in units:
-        output = directory / (unit.replace('/', '_')[:-2] + '.obj')
-        run([compiler, '-nologo', '-TC', '-std:c11', '-MD', '-O2', '-Brepro',
-             '-DBROTLI_BUILD_PORTABLE', '-I' + str(source / 'brotli/include'),
-             '-c', str(source / 'brotli' / unit), '-Fo' + str(output)], output.stem)
+        obj_ext = ".o" if native.is_darwin else ".obj"
+        output = directory / (unit.replace("/", "_")[:-2] + obj_ext)
+        if native.is_darwin:
+            c_args = [arg for arg in compiler_cmd if not arg.startswith("-stdlib=")]
+            cmd = [*c_args, "-x", "c", "-std=c11", "-O2", "-fPIC", "-DBROTLI_BUILD_PORTABLE",
+                   "-I" + str(source / "brotli/include"), "-c", str(source / "brotli" / unit), "-o", str(output)]
+        else:
+            cmd = [compiler, "-nologo", "-TC", "-std:c11", "-MD", "-O2", "-Brepro",
+                   "-DBROTLI_BUILD_PORTABLE", "-I" + str(source / "brotli/include"),
+                   "-c", str(source / "brotli" / unit), "-Fo" + str(output)]
+        run(cmd, output.stem)
         objects.append(str(output))
-    run([librarian, *lib_prefix, '-OUT:' + str(libs[1]), *objects], 'archive_brotli')
+    archive_cmd2 = [librarian, *lib_prefix, str(libs[1]), *objects] if native.is_darwin else [librarian, *lib_prefix, "-OUT:" + str(libs[1]), *objects]
+    run(archive_cmd2, "archive_brotli")
     if any(digest(source / row['path']) != row['sha256'] for row in manifest['files']):
         raise ValueError('Compression source changed during dependency build')
     report['outputs'] = {path.name: digest(path) for path in libs}

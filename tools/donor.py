@@ -16,14 +16,20 @@ class Donor:
         self.shell = self.obj / "js/src/shell"
         self.backend_path = self.shell / "backend.mk"
         self.backend = self.backend_path.read_text(encoding="utf-8")
-        required = {"JS_STANDALONE": "1", "OS_ARCH": "WINNT"}
-        for name, expected in required.items():
-            if str(self.substs.get(name)) != expected:
-                raise ValueError(f"donor requires {name}={expected}")
-        if "x86_64" not in str(self.substs.get("target", "")):
-            raise ValueError("donor must target x86_64 Windows")
-        if "-MD" not in self.flags("COMPUTED_CXXFLAGS"):
-            raise ValueError("donor must use the shared MSVC CRT (-MD)")
+        if str(self.substs.get("JS_STANDALONE")) != "1":
+            raise ValueError("donor requires JS_STANDALONE=1")
+        self.os_arch = str(self.substs.get("OS_ARCH"))
+        if self.os_arch == "WINNT":
+            if "x86_64" not in str(self.substs.get("target", "")):
+                raise ValueError("donor must target x86_64 Windows")
+            if "-MD" not in self.flags("COMPUTED_CXXFLAGS"):
+                raise ValueError("donor must use the shared MSVC CRT (-MD)")
+        elif self.os_arch == "Darwin":
+            target = str(self.substs.get("target", ""))
+            if "darwin" not in target:
+                raise ValueError("donor must target Darwin")
+        else:
+            raise ValueError(f"unsupported donor OS_ARCH: {self.os_arch}")
 
     def values(self, variable):
         pattern = rf"^{re.escape(variable)}\s*(?:\+=|:=|=)\s*(.*)$"
@@ -49,21 +55,26 @@ class Donor:
                 for key in ("STATIC_LIBS", "SHARED_LIBS")
                 for item in self.flags(key)]
 
+    def js_list_path(self):
+        p = self.shell / "js_exe.list"
+        return p if p.is_file() else (self.shell / "js.list")
+
     def objects(self):
-        text = (self.shell / "js_exe.list").read_text(encoding="utf-8")
+        text = self.js_list_path().read_text(encoding="utf-8")
         return [(self.shell / line.strip().strip('"')).resolve()
                 for line in text.splitlines() if line.strip()]
 
     def libpaths(self, vs_root=None):
         result = []
-        for value in self.substs["HOST_LINKER_LIBPATHS"]:
+        for value in self.substs.get("HOST_LINKER_LIBPATHS", []):
             path = value.split(":", 1)[1].strip("'\"")
             result.append("-LIBPATH:" + self.remap_vs(path, vs_root))
         return result
 
     def include(self, vs_root=None):
-        return ";".join(self.remap_vs(path, vs_root)
-                        for path in self.substs["INCLUDE"].split(";"))
+        raw = self.substs.get("INCLUDE", "")
+        if not raw: return ""
+        return ";".join(self.remap_vs(path, vs_root) for path in raw.split(";") if path)
 
     @staticmethod
     def remap_vs(path, vs_root):
@@ -76,6 +87,6 @@ class Donor:
         return (Path(vs_root) / normalized.split(marker, 1)[1]).as_posix()
 
     def source_inputs(self):
-        return [self.config_path, self.backend_path, self.shell / "js_exe.list",
+        return [self.config_path, self.backend_path, self.js_list_path(),
                 self.shell / "Unified_cpp_js_src_shell0.cpp",
                 self.obj / "js/src/js-confdefs.h", self.src / "js/src/shell/js.cpp"]

@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #include "runtime/arguments.h"
 #include <cstring>
 #include <fstream>
@@ -89,3 +90,75 @@ bool ReadUTF8File(const char* path, std::string* output) {
   return !file.bad();
 }
 }
+
+#else
+#include "runtime/arguments.h"
+#include <cstring>
+#include <fstream>
+#include <iterator>
+#include <cstdlib>
+#include <unistd.h>
+
+namespace ruyijs {
+namespace {
+bool ExpandTracePid(std::string& path) {
+  const std::string pid = std::to_string(getpid());
+  bool changed = false;
+  size_t offset = 0;
+  while ((offset = path.find("{pid}", offset)) != std::string::npos) {
+    path.replace(offset, 5, pid);
+    offset += pid.size();
+    changed = true;
+  }
+  return changed;
+}
+void PrepareTracePath(std::vector<std::string>& arguments) {
+  for (size_t index = 1; index < arguments.size(); ++index) {
+    if (arguments[index] == "--trace-file") {
+      if (index + 1 < arguments.size()) ExpandTracePid(arguments[index + 1]);
+      return;
+    }
+    if (arguments[index].rfind("--trace-file=", 0) == 0) {
+      ExpandTracePid(arguments[index]);
+      return;
+    }
+  }
+  const char* configured = std::getenv("MOZ_JS_STANDALONE_TRACE_FILE");
+  if (!configured || !*configured) configured = std::getenv("RUYIJS_TRACE_FILE");
+  if (!configured || !*configured) return;
+  std::string path(configured);
+  if (ExpandTracePid(path)) arguments.push_back("--trace-file=" + path);
+}
+}  // namespace
+
+bool Arguments::Prepare(int* count, char*** values) {
+  bool product = false;
+  for (int index = 1; index < *count; ++index) {
+    if (!strcmp((*values)[index], "--ruyijs-runtime") ||
+        !strcmp((*values)[index], "--ruyijs-rpc") ||
+        !strncmp((*values)[index], "--ruyijs-rpc=", 13) ||
+        !strcmp((*values)[index], "--ruyijs-worker") ||
+        !strncmp((*values)[index], "--ruyijs-worker=", 16)) product = true;
+  }
+  if (!product) return true;
+  strings_.reserve(*count);
+  for (int index = 0; index < *count; ++index) {
+    strings_.emplace_back((*values)[index]);
+  }
+  PrepareTracePath(strings_);
+  pointers_.clear();
+  for (auto& text : strings_) pointers_.push_back(text.data());
+  pointers_.push_back(nullptr);
+  *count = static_cast<int>(strings_.size());
+  *values = pointers_.data();
+  return true;
+}
+
+bool ReadUTF8File(const char* path, std::string* output) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file) return false;
+  output->assign(std::istreambuf_iterator<char>(file), {});
+  return !file.bad();
+}
+}  // namespace ruyijs
+#endif

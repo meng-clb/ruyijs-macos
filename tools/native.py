@@ -1,4 +1,4 @@
-"""Clang/lld command construction with all writable outputs inside ruyijs."""
+"""Compiler and linker command construction for Windows and Darwin."""
 
 import hashlib
 import json
@@ -13,9 +13,12 @@ class Native:
     def __init__(self, donor, root, directory, args):
         self.donor, self.root, self.directory = donor, root, directory
         self.args = args
+        self.is_darwin = (donor.os_arch == "Darwin")
+        self.is_windows = (donor.os_arch == "WINNT")
         self.env = os.environ.copy()
-        self.env["INCLUDE"] = donor.include(args.vs_root)
-        self.env["TEMP"] = self.env["TMP"] = str(directory)
+        if self.is_windows:
+            self.env["INCLUDE"] = donor.include(args.vs_root)
+            self.env["TEMP"] = self.env["TMP"] = str(directory)
         self.commands = []
         self.command_lock = threading.Lock()
         self.versions = {}
@@ -25,8 +28,6 @@ class Native:
         self._stamps = {}
 
     def _stamp(self, path):
-        # (size, mtime_ns) of one header, read once per build across all units.
-        # Two threads may stat the same path; the results are identical.
         stamp = self._stamps.get(path, False)
         if stamp is False:
             try:
@@ -38,8 +39,6 @@ class Native:
         return stamp
 
     def _dependencies(self, log_path):
-        # clang-cl -showIncludes: record every included file, then drop the
-        # notes so the log keeps only diagnostics.
         prefix = "Note: including file:"
         lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
         deps = sorted({line[len(prefix):].strip() for line in lines if line.startswith(prefix)})
@@ -51,37 +50,51 @@ class Native:
         return self.directory / "incremental" / (name + ".json")
 
     def tool(self, name, configured):
-        path = (Path(self.args.toolchain_bin) / name
-                if self.args.toolchain_bin else Path(configured))
-        # absolute() keeps lld-link.exe; resolve() follows it to the generic lld.exe driver.
-        return str(path.absolute())
+        if self.args.toolchain_bin:
+            path = Path(self.args.toolchain_bin) / name
+            return str(path.absolute())
+        return str(Path(configured).absolute()) if configured else name
 
     def librarian(self):
         """Return (exe, prefix_args) for static-library archiving."""
-        path = self.tool('llvm-lib.exe', 'llvm-lib.exe')
+        if self.is_darwin:
+            return "/usr/bin/libtool", ["-static", "-o"]
+        path = self.tool("llvm-lib.exe", "llvm-lib.exe")
         if Path(path).is_file():
             return path, []
-        alt = Path(path).parent / 'lld-link.exe'
+        alt = Path(path).parent / "lld-link.exe"
         if alt.is_file():
-            return str(alt.absolute()), ['/lib']
+            return str(alt.absolute()), ["/lib"]
         return path, []
 
     def compiler(self):
         configured = self.donor.substs["CXX"]
+        if self.is_darwin:
+            return configured if isinstance(configured, list) else [configured]
         return [self.tool("clang-cl.exe", configured[0]), *configured[1:]]
 
     def linker(self):
-        return self.tool("lld-link.exe", self.donor.substs["LINKER"])
+        configured = self.donor.substs.get("LINKER")
+        if self.is_darwin:
+            if configured:
+                return str(configured) if isinstance(configured, str) else configured[0]
+            cxx = self.compiler()
+            return cxx[0] if isinstance(cxx, list) else str(cxx)
+        return self.tool("lld-link.exe", configured)
 
     def check_tools(self, compile_needed):
         paths = [self.linker()]
         if compile_needed:
-            paths.append(self.compiler()[0])
+            c = self.compiler()
+            paths.append(c[0] if isinstance(c, list) else c)
         for path in paths:
-            version = subprocess.run([path, "--version"], env=self.env,
-                                     cwd=self.directory, text=True,
-                                     capture_output=True, check=True)
-            self.versions[path] = version.stdout.strip()
+            try:
+                version = subprocess.run([path, "--version"], env=self.env,
+                                         cwd=self.directory, text=True,
+                                         capture_output=True, check=True)
+                self.versions[path] = version.stdout.strip()
+            except Exception as e:
+                self.versions[path] = str(e)
 
     def run(self, command, name):
         with self.command_lock:
@@ -99,25 +112,39 @@ class Native:
             raise RuntimeError(f"{name} exited {result.returncode}\n{tail}")
 
     def compile(self, source, name, exceptions=False):
-        output = self.directory / f"{name}.obj"
+        obj_ext = ".o" if self.is_darwin else ".obj"
+        output = self.directory / f"{name}{obj_ext}"
         if name == "geometry_harfbuzz":
             from geometry_fonts import FLAGS
-            flags = ["-std:c++20", "-MD", "-O2", "-EHsc", "-DNDEBUG", *FLAGS,
-                     "-I" + str(self.donor.src / "gfx/harfbuzz/src")]
+            if self.is_darwin:
+                flags = ["-std=c++20", "-O2", "-DNDEBUG", *FLAGS,
+                         "-I" + str(self.donor.src / "gfx/harfbuzz/src")]
+            else:
+                flags = ["-std:c++20", "-MD", "-O2", "-EHsc", "-DNDEBUG", *FLAGS,
+                         "-I" + str(self.donor.src / "gfx/harfbuzz/src")]
         else:
             flags = self.donor.flags("COMPUTED_CXXFLAGS")
+            if self.is_darwin:
+                flags = [*flags, "-D_LIBCPP_DISABLE_AVAILABILITY", "-Wno-deprecated-declarations"]
             if exceptions:
-                flags = [flag for flag in flags if flag not in
-                         ("-D_HAS_EXCEPTIONS=0", "-fno-exceptions")]
-                flags += ["-D_HAS_EXCEPTIONS=1", "-EHsc"]
-            # js.cpp contains quoted includes relative to its original shell directory.
+                if self.is_darwin:
+                    flags = [f for f in flags if f != "-fno-exceptions"]
+                    flags += ["-fexceptions"]
+                else:
+                    flags = [f for f in flags if f not in ("-D_HAS_EXCEPTIONS=0", "-fno-exceptions")]
+                    flags += ["-D_HAS_EXCEPTIONS=1", "-EHsc"]
             flags += ["-I" + str(self.donor.src / "js/src/shell"),
                       "-I" + str(self.root / "src"), "-I" + str(self.directory)]
             if source.parent.name == "web_geometry":
                 flags += ["-I" + str(self.donor.src / "gfx/harfbuzz/src")]
             if source.name == "compression_brotli.cpp":
                 flags += ["-I" + str(self.root / "vendor/compression-native/brotli/include")]
-        command = [*self.compiler(), *flags, "-showIncludes", "-c", str(source), "-Fo" + str(output)]
+
+        if self.is_darwin:
+            command = [*self.compiler(), *flags, "-c", str(source), "-o", str(output)]
+        else:
+            command = [*self.compiler(), *flags, "-showIncludes", "-c", str(source), "-Fo" + str(output)]
+
         signature = hashlib.sha256(json.dumps({
             "source": str(Path(source).resolve()),
             "source_sha256": hashlib.sha256(Path(source).read_bytes()).hexdigest(),
@@ -142,26 +169,38 @@ class Native:
         try:
             self.run(command, name)
         finally:
-            deps = self._dependencies(self.directory / f"{name}.log")
+            deps = self._dependencies(self.directory / f"{name}.log") if self.is_windows else {}
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps({"signature": signature, "dependencies": deps}),
                          encoding="utf-8")
         return output
 
     def link(self, objects, executable):
-        # Nothing recompiled and the executable is newer than every object.
         if (executable.is_file() and self.incremental["misses"] == 0 and
                 not self.incremental["disabled"]):
             built = executable.stat().st_mtime_ns
             if all(Path(path).stat().st_mtime_ns <= built for path in objects):
                 print("link (up to date)", flush=True)
                 return False
+
+        if self.is_darwin:
+            flags = ["-o", str(executable)]
+            flags += [str(path) for path in objects]
+            flags += [str(path) for path in self.donor.libraries()]
+            flags += self.donor.flags("COMPUTED_LDFLAGS")
+            flags += self.donor.flags("OS_LIBS")
+            flags += ["-lz", "-framework", "Security", "-framework", "CoreFoundation", "-framework", "Foundation"]
+            flags += ["-Wl,-rpath,@executable_path", "-Wl,-rpath,@loader_path"]
+            compiler_cmd = self.compiler()
+            self.run([*compiler_cmd, *flags], "link")
+            return True
+
         stem = executable.stem
         flags = ["-OUT:" + str(executable),
                  "-PDB:" + str(self.directory / (stem + ".pdb")),
                  "-IMPLIB:" + str(self.directory / (stem + ".lib")), "-MACHINE:X64"]
         for key in ("WIN32_CONSOLE_EXE_LDFLAGS", "WIN32_EXE_DEFAULT_LDFLAGS"):
-            flags.extend(self.donor.substs[key])
+            flags.extend(self.donor.substs.get(key, []))
         flags += self.donor.flags("COMPUTED_LDFLAGS")
         if any("CETCOMPAT" in flag.upper() for flag in flags):
             raise ValueError("standalone shell JIT requires CETCOMPAT disabled")
@@ -175,6 +214,13 @@ class Native:
         return True
 
     def deploy(self, destination):
+        if self.is_darwin:
+            mozglue = self.donor.obj / "dist/bin/libmozglue.dylib"
+            paths = [mozglue] if mozglue.is_file() else []
+            for path in paths:
+                shutil.copy2(path, destination / path.name)
+            return paths
+
         paths = [self.donor.obj / "dist/bin/mozglue.dll"]
         if self.args.runtime_dll_dir:
             source = Path(self.args.runtime_dll_dir)

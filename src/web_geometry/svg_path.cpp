@@ -1,10 +1,12 @@
+#include "web_geometry/svg_path.h"
+
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
 #include <d2d1.h>
 #include <wrl/client.h>
-#include "web_geometry/svg_path.h"
 #pragma comment(lib, "d2d1.lib")
 
 namespace ruyijs::web_geometry {
@@ -47,8 +49,20 @@ bool SvgPathBounds(const std::vector<ruyijs::domain::geometry::SvgPathCommand>& 
     status=path->GetWidenedBounds(stroke, style.Get(), nullptr, .01f, &bounds);
   } else status=path->GetBounds(nullptr, &bounds);
   if (FAILED(status)) return false;
-  *out = bounds.right < bounds.left || bounds.bottom < bounds.top ? ruyijs::domain::geometry::SvgBox{}
-      : ruyijs::domain::geometry::SvgBox{bounds.left,bounds.top,bounds.right-bounds.left,bounds.bottom-bounds.top};
+  *out = bounds.right < bounds.left || bounds.bottom < bounds.top ? ruyijs::domain::geometry::SvgBox{} :
+      ruyijs::domain::geometry::SvgBox{bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top};
   return true;
 }
 }
+
+#else
+
+namespace ruyijs::web_geometry {
+bool SvgPathBounds(const std::vector<ruyijs::domain::geometry::SvgPathCommand>&,
+                   float, ruyijs::domain::geometry::SvgBox* out) {
+  if (out) *out = {};
+  return true;
+}
+}
+
+#endif

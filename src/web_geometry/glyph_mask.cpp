@@ -1,3 +1,4 @@
+#ifdef _WIN32
 // One glyph mask through IDWriteGlyphRunAnalysis, exactly as SkScalerContext_DW
 // asks for it: the same em size, measuring mode, grid fitting and grayscale
 // antialiasing, the subpixel offset folded into the glyph run transform, and
@@ -77,3 +78,5 @@ bool GlyphMask(const SelectedFont& font, float deviceSize, const float linear[4]
   return true;
 }
 }  // namespace ruyijs::web_geometry
+
+#endif

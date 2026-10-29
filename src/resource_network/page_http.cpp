@@ -7,10 +7,12 @@
 #include "domain/resource_network/request_defaults.h"
 #include <chrono>
 #include <string>
+#ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#endif
 
 namespace ruyijs::resource_network {
 namespace {
@@ -53,9 +55,15 @@ bool HttpExchange::Prepare(HttpResult* local) {
   }
   hopStart_=observe_?model_.HttpNow():0;
   if(observe_) {
+#ifdef _WIN32
     LARGE_INTEGER counter,frequency;
     QueryPerformanceCounter(&counter);QueryPerformanceFrequency(&frequency);
     hopTick_=double(counter.QuadPart)*1000/double(frequency.QuadPart);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    hopTick_ = double(ts.tv_sec) * 1000.0 + double(ts.tv_nsec) / 1000000.0;
+#endif
   }
   url_ = address_.href();
   ResourceSnapshot stored;

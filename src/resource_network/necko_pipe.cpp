@@ -1,6 +1,8 @@
 #include "resource_network/necko_pipe.h"
 #include <string>
 
+#ifdef _WIN32
+
 namespace ruyijs::resource_network {
 DWORD NeckoRemaining(ULONGLONG deadline) {
   const auto now = GetTickCount64();
@@ -68,3 +70,70 @@ bool NeckoPipe::Read(void* data, uint32_t size, ULONGLONG deadline) {
   return Transfer(data, size, false, deadline);
 }
 }
+
+#else
+
+#include <poll.h>
+#include <time.h>
+#include <unistd.h>
+
+namespace ruyijs::resource_network {
+static inline ULONGLONG PosixTickCountMs() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return static_cast<ULONGLONG>(ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
+}
+
+DWORD NeckoRemaining(ULONGLONG deadline) {
+  const auto now = PosixTickCountMs();
+  return now >= deadline ? 0 : DWORD(deadline - now);
+}
+
+bool NeckoPipe::Open(bool parentWrites) {
+  int fds[2];
+  if (pipe(fds) != 0) return false;
+  if (parentWrites) {
+    parent_.Reset(fds[1]);
+    child_.Reset(fds[0]);
+  } else {
+    parent_.Reset(fds[0]);
+    child_.Reset(fds[1]);
+  }
+  return true;
+}
+
+bool NeckoPipe::Transfer(void* data, uint32_t size, bool writing, ULONGLONG deadline) {
+  auto* bytes = static_cast<char*>(data);
+  uint32_t done = 0;
+  while (done < size) {
+    DWORD rem = NeckoRemaining(deadline);
+    if (rem == 0) return false;
+    struct pollfd pfd{};
+    pfd.fd = static_cast<int>(parent_.Get());
+    pfd.events = writing ? POLLOUT : POLLIN;
+    int timeout = rem > 60000 ? 60000 : static_cast<int>(rem);
+    int ret = poll(&pfd, 1, timeout);
+    if (ret <= 0) return false;
+    ssize_t moved = 0;
+    const size_t amount = size - done > 65536 ? 65536 : size - done;
+    if (writing) {
+      moved = write(static_cast<int>(parent_.Get()), bytes + done, amount);
+    } else {
+      moved = read(static_cast<int>(parent_.Get()), bytes + done, amount);
+    }
+    if (moved <= 0) return false;
+    done += static_cast<uint32_t>(moved);
+  }
+  return true;
+}
+
+bool NeckoPipe::Write(const void* data, uint32_t size, ULONGLONG deadline) {
+  return Transfer(const_cast<void*>(data), size, true, deadline);
+}
+
+bool NeckoPipe::Read(void* data, uint32_t size, ULONGLONG deadline) {
+  return Transfer(data, size, false, deadline);
+}
+}
+
+#endif

@@ -1,6 +1,7 @@
 #ifndef RUYIJS_PIPE_ASYNC_H
 #define RUYIJS_PIPE_ASYNC_H
 #include "runtime/pipe.h"
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -8,6 +9,17 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+using HANDLE = void*;
+using DWORD = uint32_t;
+struct OVERLAPPED {
+  uintptr_t Internal;
+  uintptr_t InternalHigh;
+  uint32_t Offset;
+  uint32_t OffsetHigh;
+  void* hEvent;
+};
+#endif
 #include <cstdint>
 #include <deque>
 

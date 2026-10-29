@@ -1,9 +1,12 @@
 // Operating-system codec adapter. The domain sees encoded bytes and real pixels.
+#include "web_media/image_codec.h"
 #include "web_media/image_wic.h"
 #include "web_media/image_animation.h"
 #include "web_media/image_gif_metadata.h"
 #include <algorithm>
 #include <limits>
+
+#ifdef _WIN32
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "windowscodecs.lib")
 
@@ -109,3 +112,24 @@ domain::web_media::ImageDecodeStatus DecodeImageBytes(const std::string& type,
   } catch (const std::bad_alloc&) { return Status::OutOfMemory; }
 }
 }
+
+#else
+
+namespace ruyijs::web_media {
+
+bool ImageCodecSupports(const std::string& type) {
+  if (type == "image/avif") return true;
+  return false;
+}
+
+domain::web_media::ImageDecodeStatus DecodeImageBytes(const std::string& type,
+    const std::vector<uint8_t>& bytes, uint32_t width, uint32_t height,
+    bool noColor, domain::web_media::ImageData* output) {
+  using Status = domain::web_media::ImageDecodeStatus;
+  if (type == "image/avif") return DecodeAvifBytes(bytes, width, height, output);
+  return Status::Unsupported;
+}
+
+}
+
+#endif

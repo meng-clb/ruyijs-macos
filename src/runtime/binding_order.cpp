@@ -36,7 +36,7 @@ bool OrderOwnKeys(JSContext* cx, JS::HandleObject target, const char* const* ord
     *match = false;
     if (keys[index].isSymbol()) {
       if (std::strncmp(name, "@@", 2)) return true;
-      JSString* description = JS::GetSymbolDescription(JS::RootedSymbol(cx, keys[index].toSymbol()));
+      JSString* description = JS::GetSymbolDescription(cx, JS::RootedSymbol(cx, keys[index].toSymbol()));
       const std::string wanted = std::string("Symbol.") + (name + 2);
       return !description || JS_StringEqualsAscii(cx, description, wanted.c_str(), match);
     }

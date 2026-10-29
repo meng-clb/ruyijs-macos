@@ -1,4 +1,6 @@
 #include "web_crypto/cng_backend.h"
+
+#ifdef _WIN32
 #include <windows.h>
 #include <bcrypt.h>
 #include <algorithm>
@@ -176,3 +178,86 @@ bool EcdhSecret(const ec::EcKey& privateKey, const ec::EcKey& publicKey, Bytes* 
   return ok;
 }
 }  // namespace ruyijs::web_crypto
+
+#else
+
+#include <CommonCrypto/CommonCryptor.h>
+#include <CommonCrypto/CommonHMAC.h>
+#include <algorithm>
+#include <cstring>
+
+namespace ruyijs::web_crypto {
+namespace {
+namespace ec = ruyijs::domain::crypto;
+}
+
+bool AesCbc(const Bytes& key, const Bytes& iv, const Bytes& input, bool encrypt, Bytes* out) {
+  if (iv.size() != 16 || (key.size() != 16 && key.size() != 24 && key.size() != 32)) return false;
+  size_t bufferSize = input.size() + kCCBlockSizeAES128;
+  out->resize(bufferSize);
+  size_t numBytesMoved = 0;
+  CCCryptorStatus status = CCCrypt(
+      encrypt ? kCCEncrypt : kCCDecrypt,
+      kCCAlgorithmAES,
+      kCCOptionPKCS7Padding,
+      key.data(), key.size(),
+      iv.data(),
+      input.data(), input.size(),
+      out->data(), out->size(),
+      &numBytesMoved
+  );
+  if (status != kCCSuccess) return false;
+  out->resize(numBytesMoved);
+  return true;
+}
+
+bool AesGcm(const Bytes& key, const Bytes& iv, const Bytes& aad, size_t tagBytes,
+            const Bytes& input, bool encrypt, Bytes* out) {
+  (void)key; (void)iv; (void)aad; (void)tagBytes; (void)input; (void)encrypt; (void)out;
+  return false;
+}
+
+bool Hmac(HashAlgorithm hash, const Bytes& key, const Bytes& data, Bytes* out) {
+  CCHmacAlgorithm alg;
+  size_t digestSize = 0;
+  switch (hash) {
+    case HashAlgorithm::Sha1: alg = kCCHmacAlgSHA1; digestSize = CC_SHA1_DIGEST_LENGTH; break;
+    case HashAlgorithm::Sha256: alg = kCCHmacAlgSHA256; digestSize = CC_SHA256_DIGEST_LENGTH; break;
+    case HashAlgorithm::Sha384: alg = kCCHmacAlgSHA384; digestSize = CC_SHA384_DIGEST_LENGTH; break;
+    case HashAlgorithm::Sha512: alg = kCCHmacAlgSHA512; digestSize = CC_SHA512_DIGEST_LENGTH; break;
+    default: return false;
+  }
+  out->assign(digestSize, 0);
+  CCHmac(alg, key.data(), key.size(), data.data(), data.size(), out->data());
+  return true;
+}
+
+bool EcGenerate(const ec::EcCurve& curve, bool ecdh, ec::EcKey* out) {
+  (void)curve; (void)ecdh; (void)out;
+  return false;
+}
+
+bool EcValidate(const ec::EcKey& key, bool ecdh) {
+  (void)key; (void)ecdh;
+  return false;
+}
+
+bool EcdsaSign(const ec::EcKey& key, HashAlgorithm hash, const Bytes& message, Bytes* out) {
+  (void)key; (void)hash; (void)message; (void)out;
+  return false;
+}
+
+bool EcdsaVerify(const ec::EcKey& key, HashAlgorithm hash, const Bytes& message,
+                 const Bytes& signature, bool* valid) {
+  (void)key; (void)hash; (void)message; (void)signature; (void)valid;
+  return false;
+}
+
+bool EcdhSecret(const ec::EcKey& privateKey, const ec::EcKey& publicKey, Bytes* out) {
+  (void)privateKey; (void)publicKey; (void)out;
+  return false;
+}
+
+}  // namespace ruyijs::web_crypto
+
+#endif

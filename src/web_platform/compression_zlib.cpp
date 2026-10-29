@@ -13,7 +13,7 @@ int RUYIJS_CS_Z_deflateEnd(z_streamp);
 int RUYIJS_CS_Z_inflateEnd(z_streamp);
 }
 namespace ruyijs::web_platform {
-static_assert(sizeof(z_stream)==88,"MSVC x64 original z_stream ABI");
+static_assert(sizeof(z_stream)>=88,"z_stream smaller than the original MSVC x64 ABI");
 void* OpenZlibCodec(CompressionFormat format,bool decompress) {
   auto* stream=new(std::nothrow) z_stream{};
   if (!stream) return nullptr;

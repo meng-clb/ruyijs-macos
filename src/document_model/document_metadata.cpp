@@ -40,7 +40,11 @@ bool Read(JSContext* cx, unsigned argc, JS::Value* vp) {
       // Without a Last-Modified header Firefox reports the current local time.
       std::time_t now = std::time(nullptr);
       std::tm local{};
+#ifdef _WIN32
       localtime_s(&local, &now);
+#else
+      localtime_r(&now, &local);
+#endif
       char buffer[32];
       std::snprintf(buffer, sizeof(buffer), "%02d/%02d/%04d %02d:%02d:%02d", local.tm_mon + 1,
                     local.tm_mday, local.tm_year + 1900, local.tm_hour, local.tm_min, local.tm_sec);

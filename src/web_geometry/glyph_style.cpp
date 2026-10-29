@@ -1,3 +1,4 @@
+#ifdef _WIN32
 // SkScalerContext_DW's choice of rendering mode, reduced to the case the canvas
 // asks for: a grayscale A8 mask, normal hinting, no embedded bitmaps. The
 // donor's bitmap branches therefore collapse, leaving the size test, the
@@ -123,3 +124,5 @@ GlyphRenderStyle GlyphStyle(IDWriteFontFace* face, float size) {
   return style;
 }
 }  // namespace ruyijs::web_geometry
+
+#endif

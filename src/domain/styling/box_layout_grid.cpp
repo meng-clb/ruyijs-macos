@@ -5,6 +5,7 @@
 // (§12: base sizes, growth limits, maximize, flexible tracks, stretch auto),
 // gaps, and align-self/align-items in the row. Implicit columns and named
 // lines/areas are not resolved: such an item takes the next auto position.
+#include <cmath>
 #include "domain/styling/box_layout_internal.h"
 #include "domain/styling/css_numeric_value.h"
 #include "domain/styling/css_components.h"

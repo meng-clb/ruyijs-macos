@@ -1,4 +1,6 @@
 #pragma once
+
+#ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
 #include <wincodec.h>
@@ -27,3 +29,4 @@ bool PixelFrame(IWICImagingFactory*, IWICBitmapFrameDecode*, uint32_t, uint32_t,
 bool GifFrames(IWICImagingFactory*, IWICBitmapDecoder*, uint32_t, uint32_t,
                domain::web_media::ImageData*);
 }
+#endif

@@ -1,8 +1,10 @@
 // Match the browser's sRGB-to-display transform using the actual system profile.
+#include "web_media/image_codec.h"
+
+#ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
 #include <fstream>
-#include "web_media/image_codec.h"
 #pragma comment(lib,"gdi32.lib")
 #pragma comment(lib,"user32.lib")
 extern "C" bool ruyijs_image_srgb_to_profile(uint8_t*,size_t,const uint8_t*,size_t);
@@ -19,3 +21,10 @@ void ImageColorTransform(domain::web_media::ImageFrame* frame) {
   ruyijs_image_srgb_to_profile(frame->pixels.data(),frame->pixels.size(),profile.data(),profile.size());
 }
 }
+#else
+namespace ruyijs::web_media {
+void ImageColorTransform(domain::web_media::ImageFrame* frame) {
+  (void)frame;
+}
+}
+#endif
