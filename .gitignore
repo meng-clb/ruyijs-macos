@@ -13,12 +13,14 @@
 /out-share-*.zip.sha256
 /artifacts/
 /tests/
+!/tests/macos_parity/
 # Only the native build and wheel tools are public; audit/probe tools stay local.
 /tools/*
 !/tools/README.md
 !/tools/generated/
 !/tools/binding_order.py
 !/tools/build.py
+!/tools/build_macos_necko.py
 !/tools/build_necko_quic.py
 !/tools/bootstrap_macos_helper.py
 !/tools/macos_runtime.py
