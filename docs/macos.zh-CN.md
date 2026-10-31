@@ -107,6 +107,8 @@ Windows 上同一次构建只复制 `oneshot.py`。Darwin 的 venv 不存在时�
 
 本地 wheel 的标签是 `macosx_26_0_arm64`。外壳放在 `_runtime/dist/js`，donor 的 xpcshell 闭包复制到 `_runtime/dist/necko`。库文件存在时，一并复制 `libnecko_quic.dylib`。wheel 里还有 `necko/closed_route.py`、`necko/core_client.py` 和 `necko_win`。wheel 和 `ruyijs-runtime-macos-arm64.zip` 放在维护者 fork 的 Release 上，不放上 PyPI。重新生成压缩包用 `python3.12 -B tools/macos_runtime.py <zip路径>`，再把打印出的 size、sha256 和 Release URL 写进 `runtime.json` 的 `macos`。
 
+本仓库另外以普通 Git 文件在 `wheels/` 保存当前 wheel。已有 donor 构建时，执行 `python3.12 -B tools/package_macos_wheel.py` 即可重新打包；如果没有 `dist/necko/xpcshell`，传入 `--xpcshell /绝对路径/xpcshell`。脚本检查 donor 文件、wheel 内容并生成 `wheels/SHA256SUMS`。其他 macOS 26+ arm64 电脑拉取仓库后，可直接用 pip 安装 `wheels/ruyijs-0.2.1-py3-none-macosx_26_0_arm64.whl`，无需 Firefox 源码或本机原生编译。
+
 ## 一次请求怎么走
 
 长度前缀帧和 Windows 相同。macOS 上的管道是 Unix socket。外壳启动 `python -I -B -m ruyijs_necko.oneshot`。直连 HTTPS 使用 `libnecko_core.dylib`。ALPN `h2` 使用产品的 HTTP/2 设置。ALPN 为 `http/1.1` 时在这条套接字上写 HTTP/1.1。其他 ALPN 表示不了，路由可以回退。代理在该请求上保留 xpcshell。直连 `http://` 走 `libnecko_core` 里的套接字和 HTTP/1 交换。直连 `https://` 走 `libnecko_core`，直到同一进程记住了响应里的 `Alt-Svc`，下一次到该来源的请求才走 `libnecko_quic`。证书校验失败不回退。不保存 cookie。`redirectionLimit` 仍是 0，xpcshell 路径上也是，所以 3xx 就作为这次的响应返回。同一个 helper 进程里，同源 HTTP/2 可以复用一条连接。页面外壳仍是每个请求启动一次 oneshot，除非使用 `--session`。

@@ -138,6 +138,10 @@ class Context(EnvironmentControl, SchedulingControl, RandomControl, ResourceCont
             raise FileNotFoundError(f"ruyijs shell does not exist: {self.shell}")
         if sys.platform == "darwin":
             runtime_root = self.shell.parent.parent
+            if not child_environment.get("RUYIJS_XPCSHELL"):
+                donor_shell = runtime_root / "dist" / "necko" / "xpcshell"
+                if donor_shell.is_file():
+                    child_environment["RUYIJS_XPCSHELL"] = str(donor_shell)
             if not child_environment.get("RUYIJS_NECKO_PYTHON"):
                 bundled = runtime_root / "vendor" / "necko-derived" / "python" / "bin" / "python3"
                 plain = runtime_root / "vendor" / "necko-derived" / "python" / "python3"

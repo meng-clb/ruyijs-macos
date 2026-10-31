@@ -32,6 +32,9 @@ def donor_bin(project: Path) -> Path:
     override = os.environ.get("RUYIJS_XPCSHELL")
     if override:
         return Path(override).resolve().parent
+    linked = project / "dist" / "necko" / "xpcshell"
+    if linked.is_file():
+        return linked.resolve().parent
     return project.parent / "firefox-159" / "obj-necko" / "dist" / "bin"
 
 

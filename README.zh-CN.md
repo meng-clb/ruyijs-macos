@@ -54,6 +54,14 @@ Windows 的 wheel 内置 SHA256 锁定的 SpiderMonkey + Necko 运行时（约 4
 
 **macOS arm64** 不使用这个 PyPI wheel。它用 Python 3.12 从源码构建，并依赖放在仓库外面的两份官方 Firefox donor，也可以安装维护者 fork Release `v0.2.1` 上的 `macosx_26_0_arm64` wheel。这个 wheel 不在 PyPI。这一轮查过的页面路径是直连 HTTPS 上的 HTTP/2。ALPN 为 `http/1.1` 时会写 HTTP/1.1，这一段做过单元测试，没有对活的源打开过。步骤和未完成的表面见 [docs/macos.zh-CN.md](docs/macos.zh-CN.md)。
 
+本仓库的 `wheels/` 目录也以普通 Git 文件保存了可直接安装的 macOS arm64 wheel。在 macOS 26 或更新版本上拉取仓库后，执行：
+
+```sh
+python3.12 -m pip install ./wheels/ruyijs-0.2.1-py3-none-macosx_26_0_arm64.whl
+```
+
+wheel 内含原生运行时，安装时无需 Firefox 源码；pip 会安装声明的 Python 依赖。维护者在构建 donor runtime 后，可用 `python3.12 -B tools/package_macos_wheel.py` 重新打包。
+
 升级：
 ```sh
 python -m pip install --upgrade ruyijs

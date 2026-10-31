@@ -54,6 +54,14 @@ The Windows wheel ships the SHA256-pinned SpiderMonkey + Necko runtime (~42 MB).
 
 **macOS arm64** is not this PyPI wheel. Build it from source with Python 3.12 and two official Firefox donor trees that stay outside the repository, or install the `macosx_26_0_arm64` wheel from the maintainer fork release `v0.2.1`. That wheel is not on PyPI. The page path checked this round is direct HTTPS over HTTP/2. HTTP/1.1 is written when ALPN is `http/1.1` and was unit-tested, not opened against a live origin. Steps and the unfinished surfaces are in [docs/macos.md](docs/macos.md).
 
+This repository also stores a ready-to-install macOS arm64 wheel in `wheels/` as a regular Git file. On macOS 26 or later, clone the repository, then run:
+
+```sh
+python3.12 -m pip install ./wheels/ruyijs-0.2.1-py3-none-macosx_26_0_arm64.whl
+```
+
+The wheel contains the native runtime; installing it does not require the Firefox source tree. Pip installs its declared Python dependencies. Maintainers can regenerate it with `python3.12 -B tools/package_macos_wheel.py` after building the donor runtime.
+
 To upgrade:
 ```sh
 python -m pip install --upgrade ruyijs

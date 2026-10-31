@@ -2,6 +2,7 @@
 from pathlib import Path
 import platform
 import shutil
+import subprocess
 import sys
 
 from setuptools import Distribution, setup
@@ -63,6 +64,14 @@ class BuildPython(build_py):
             from macos_runtime import donor_bin, stage_necko
             stage_necko(target / "dist" / "necko", donor_bin(project),
                         project / "src/resource_network/necko_fetch.js")
+            # Strip only the packaged XUL copy; the donor build stays intact.
+            xul = target / "dist" / "necko" / "XUL"
+            stripped = xul.with_name("XUL.stripped")
+            try:
+                subprocess.run(["xcrun", "strip", "-S", "-x", "-o", str(stripped), str(xul)], check=True)
+                stripped.replace(xul)
+            finally:
+                stripped.unlink(missing_ok=True)
             _install_darwin_helper(Path(self.build_lib), project)
         examples = Path(self.build_lib) / "ruyijs/examples"
         if examples.exists():

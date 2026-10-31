@@ -24,6 +24,10 @@ dependencies = [
     "requests; sys_platform == 'darwin'",
     "brotli; sys_platform == 'darwin'",
     "zstandard; sys_platform == 'darwin'",
+    "h2; sys_platform == 'darwin'",
+    "cryptography; sys_platform == 'darwin'",
+    "backports.zstd; sys_platform == 'darwin'",
+    "publicsuffixlist; sys_platform == 'darwin'",
 ]
 
 [tool.setuptools]
