@@ -8,6 +8,7 @@ import subprocess
 import unittest
 from pathlib import Path
 from ruyijs import Context
+from ruyijs._runtime_paths import get_runtime_path
 
 
 class TestNeckoIdentity(unittest.TestCase):
@@ -30,10 +31,12 @@ class TestNeckoIdentity(unittest.TestCase):
 
     def test_xpcshell_donor_binary_validity(self):
         """Verify xpcshell executable is arm64 Mach-O and runnable."""
-        xpcshell = os.environ.get("RUYIJS_XPCSHELL") or "/Users/ameng/Desktop/firefox-src/firefox-159.0/obj-necko/dist/bin/xpcshell"
-        self.assertTrue(os.path.isfile(xpcshell), f"xpcshell missing at {xpcshell}")
+        xpcshell = Path(os.environ.get("RUYIJS_XPCSHELL") or
+                         get_runtime_path() / "dist" / "necko" / "xpcshell")
+        if not xpcshell.is_file():
+            self.skipTest(f"xpcshell is not packaged in this wheel: {xpcshell}")
 
-        res = subprocess.run(["file", xpcshell], capture_output=True, text=True)
+        res = subprocess.run(["file", str(xpcshell)], capture_output=True, text=True)
         self.assertIn("Mach-O 64-bit", res.stdout)
         self.assertIn("arm64", res.stdout)
 

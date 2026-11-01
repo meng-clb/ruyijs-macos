@@ -1,4 +1,6 @@
 /build/
+# Firefox objdirs of the source build (ci/firefox/build.sh).
+/obj/
 /dist/
 /dist-*/
 /result/
@@ -12,7 +14,9 @@
 /out-share-*.zip
 /out-share-*.zip.sha256
 /artifacts/
-/tests/
+# Keep local test files out, admit the one runtime-integration suite.
+/tests/*
+!/tests/test_macos_runtime.py
 !/tests/macos_parity/
 # Only the native build and wheel tools are public; audit/probe tools stay local.
 /tools/*
@@ -20,11 +24,18 @@
 !/tools/generated/
 !/tools/binding_order.py
 !/tools/build.py
+!/tools/build_linux.py
+!/tools/build_necko_linux.py
+!/tools/build_necko_darwin.py
 !/tools/build_macos_necko.py
+!/tools/package_macos_wheel.py
+!/tools/build_neqo_linux.py
+!/tools/bundle_linux.py
+!/tools/prepare_linux.py
+!/tools/prepare_skia_linux.py
 !/tools/build_necko_quic.py
 !/tools/bootstrap_macos_helper.py
 !/tools/macos_runtime.py
-!/tools/package_macos_wheel.py
 !/tools/client.py
 !/tools/compression_native.py
 !/tools/donor.py
@@ -33,6 +44,8 @@
 !/tools/image_native.py
 !/tools/native.py
 !/tools/product_sources.py
+!/tools/signal_parity.py
+!/tools/shaping_parity.py
 !/tools/provenance.py
 !/tools/sanitizer_data.py
 !/tools/skia_native.py

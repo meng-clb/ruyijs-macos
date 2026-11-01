@@ -34,6 +34,9 @@ std::string DefaultGenericFamily();
 // Overrides the OS locale Firefox uses for untagged text
 // (nsLanguageAtomService::GetLocaleLanguage); "" restores the OS locale.
 void SetBrowserLanguage(const std::string& language);
+// The profile locale set with SetBrowserLanguage, if any (the OS-locale and
+// pref fallbacks that Group() adds live with the preference chain).
+std::string BrowserLanguage();
 // The text metrics a 2D canvas context reports, in CSS pixels, computed the way
 // Firefox reports them: the advance rounded to app units and divided by 60 in
 // float, the tight ink box of the glyphs relative to the origin on the
@@ -56,6 +59,9 @@ struct CanvasTextMetrics {
 struct CanvasGlyphRun {
   IDWriteFontFace* face = nullptr;
   bool syntheticItalic = false;
+#if defined(__linux__)
+  bool syntheticBold = false;
+#endif
   // gfxDWriteFont::GetScaledFont's useEmbeddedBitmap without the rendering
   // mode test: a CJK font (OS/2 code pages) with an EBLC strike at the size.
   bool cjkBitmapStrike = false;

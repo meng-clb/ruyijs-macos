@@ -100,6 +100,11 @@ bool Source(State& s, JS::HandleValue value, Pixels* out) {
       return Invalid(s, "The source image could not be decoded");
     const auto& frame = decoded.frames.front();
     out->width = frame.width; out->height = frame.height; out->bytes = frame.pixels;
+#if defined(__linux__)
+    // The Linux codec's ImageFrame is BGRA; the bitmap store is RGBA.
+    for (size_t i = 0; i + 3 < out->bytes.size(); i += 4)
+      std::swap(out->bytes[i], out->bytes[i + 2]);
+#endif
     return true;
   }
   if (clasp == &kImageDataClass) {

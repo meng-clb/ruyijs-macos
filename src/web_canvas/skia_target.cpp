@@ -15,7 +15,7 @@
 #endif
 
 #include "web_canvas/skia_target.h"
-#ifndef _WIN32
+#if defined(__APPLE__)
 #include "web_geometry/font_backend.h"
 #include "include/ports/SkTypeface_mac.h"
 #endif
@@ -1251,7 +1251,7 @@ const TextSettings& Settings() {
     s.gamma = web_geometry::SystemTextGamma();
     s.contrast = web_geometry::SystemTextContrast();
     if (s.gamma < 0.0f || s.gamma > 4.0f) s.gamma = 2.2f;
-#else
+#elif defined(__APPLE__)
     s.gamma = web_geometry::SystemTextGamma();
     s.contrast = web_geometry::SystemTextContrast();
     if (s.gamma < 0.0f || s.gamma > 4.0f) s.gamma = 1.8f;
@@ -1280,11 +1280,14 @@ sk_sp<SkTypeface> TypefaceFor(IDWriteFontFace* face) {
   if (font) font->Release();
   return typeface;
 }
-#else
+#elif defined(__APPLE__)
 sk_sp<SkTypeface> TypefaceFor(::IDWriteFontFace* face) {
   if (!face || !face->CoreFont()) return nullptr;
   return SkMakeTypefaceFromCTFont(static_cast<CTFontRef>(face->CoreFont()));
 }
+#else
+// The run's face is already the Skia typeface font_posix.cpp shaped with.
+sk_sp<SkTypeface> TypefaceFor(::IDWriteFontFace* face) { return sk_ref_sp(face); }
 #endif
 }  // namespace
 
@@ -1322,6 +1325,9 @@ void DrawRuns(SkCanvas* canvas, const Matrix& base, const TextRun* runs, size_t 
     // not permit subpixel AA, so the edging is grayscale.
     paint.paint.setAntiAlias(true);
     SkFont font(typeface, size);
+#if defined(__linux__)
+    font.setEmbolden(run.syntheticBold);
+#endif
     font.setEdging(SkFont::Edging::kAntiAlias);
     // ScaledFontDWrite::SetupSkFontDrawOptions (canvas text never forces GDI).
     font.setEmbeddedBitmaps(Settings().mode == 0 /* DWRITE_RENDERING_MODE_DEFAULT */ &&
@@ -1449,7 +1455,7 @@ bool FillText(const Surface& surface, const double transform[6], const TextRun* 
 }
 }  // namespace ruyijs::web_canvas::skia
 
-#ifndef _WIN32
+#if defined(__APPLE__)
 // SkCTFontCreateExactCopy calls this Firefox widget helper before it reapplies
 // font variations. The shell targets macOS 26, so that path is the one taken.
 // widget/cocoa/nsCocoaFeatures.mm is not part of this link.

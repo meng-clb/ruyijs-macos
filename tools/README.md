@@ -135,14 +135,15 @@ macOS 不使用上面的 Windows 预编译运行时。外壳从源码构建，Fi
 [docs/macos.zh-CN.md](../docs/macos.zh-CN.md)。
 
 仓库内供直接安装的 wheel 在 `wheels/`，以普通 Git 文件管理。维护者已有
-`dist/js` 和 `dist/necko/xpcshell` 后，用一条命令重新打包：
+`dist/js`、`dist/libruyijs_client.dylib`、`dist/necko_tls/libnecko_core.dylib`
+和 `dist/necko_tls/libnecko_quic.dylib` 后，用一条命令重新打包：
 
 ```sh
 python3.12 -B tools/package_macos_wheel.py
 ```
 
-如果 donor 不在 `dist/necko`，加 `--xpcshell /绝对路径/xpcshell`。
-脚本会检查必需文件、构建 wheel 并更新 `wheels/SHA256SUMS`。
+如需把 donor 的 xpcshell/XUL 一起放进 wheel，加 `--xpcshell /绝对路径/xpcshell`。
+脚本会检查必需文件、构建 wheel 并更新两个版本的 `wheels/SHA256SUMS`。
 
 在仓库根目录、且已设置 `MACOSX_DEPLOYMENT_TARGET=26.0` 时：
 

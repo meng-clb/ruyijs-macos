@@ -4,7 +4,11 @@
 #include <cstdint>
 #include <vector>
 
+#if defined(__linux__)
+#include "runtime/font_face.h"
+#else
 struct IDWriteFontFace;
+#endif
 struct DWRITE_GLYPH_RUN;
 
 namespace ruyijs::web_geometry {
@@ -56,6 +60,9 @@ struct CanvasGlyphMask {
     std::vector<uint8_t> coverage;   // width*height, gamma-corrected A8
     uint8_t rgba[4] = {0, 0, 0, 0};  // straight palette colour
   };
+#if defined(__linux__)
+  std::vector<uint8_t> rgba;  // a FreeType colour glyph, premultiplied RGBA
+#endif
   std::vector<Layer> layers;  // non-empty for a colour glyph
   bool sampled = false;
   double origin_x = 0, origin_y = 0;

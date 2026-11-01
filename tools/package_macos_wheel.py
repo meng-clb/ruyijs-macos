@@ -15,7 +15,7 @@ import tempfile
 import tomllib
 import zipfile
 
-from macos_runtime import NECKO_DIRS, NECKO_FILES, donor_bin
+from macos_runtime import NECKO_DIRS, NECKO_FILES, NSS_FILES, donor_bin
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +23,8 @@ REQUIRED_RUNTIME = (
     "dist/js",
     "dist/libmozglue.dylib",
     "dist/libruyijs_client.dylib",
+    "dist/necko_tls/libnecko_core.dylib",
+    "dist/necko_tls/libnecko_quic.dylib",
 )
 GITHUB_BLOB_LIMIT = 100 * 1024 * 1024
 
@@ -39,29 +41,37 @@ def verify_inputs(donor: Path) -> None:
     for name in REQUIRED_RUNTIME:
         if not (ROOT / name).is_file():
             raise FileNotFoundError(f"missing runtime file: {ROOT / name}")
-    for name in NECKO_FILES:
-        if not (donor / name).is_file():
-            raise FileNotFoundError(f"missing Firefox donor file: {donor / name}")
-    for name in NECKO_DIRS:
-        if not (donor / name).is_dir():
-            raise FileNotFoundError(f"missing Firefox donor directory: {donor / name}")
+    if (donor / "xpcshell").is_file():
+        for name in NECKO_FILES:
+            if not (donor / name).is_file():
+                raise FileNotFoundError(f"missing Firefox donor file: {donor / name}")
+        for name in NECKO_DIRS:
+            if not (donor / name).is_dir():
+                raise FileNotFoundError(f"missing Firefox donor directory: {donor / name}")
+    else:
+        for name in NSS_FILES:
+            if not (ROOT / "dist" / "necko_tls" / name).is_file():
+                raise FileNotFoundError(f"missing native dependency: dist/necko_tls/{name}")
 
 
-def verify_wheel(wheel: Path) -> None:
+def verify_wheel(wheel: Path, *, with_xpcshell: bool) -> None:
     if wheel.stat().st_size > GITHUB_BLOB_LIMIT:
         raise ValueError(f"wheel exceeds GitHub's 100 MiB Git file limit: {wheel.stat().st_size}")
     required = {
         "ruyijs/_runtime/dist/js",
         "ruyijs/_runtime/dist/libmozglue.dylib",
         "ruyijs/_runtime/dist/libruyijs_client.dylib",
-        "ruyijs/_runtime/dist/necko/xpcshell",
-        "ruyijs/_runtime/dist/necko/XUL",
+        "ruyijs/_runtime/dist/necko/libnecko_core.dylib",
+        "ruyijs/_runtime/dist/necko/libnecko_quic.dylib",
         "ruyijs/_runtime/dist/necko/libnss3.dylib",
-        "ruyijs/_runtime/dist/necko/necko_fetch.js",
         "necko/core_client.py",
         "necko/closed_route.py",
         "ruyijs_necko/oneshot.py",
     }
+    if with_xpcshell:
+        required.update({"ruyijs/_runtime/dist/necko/xpcshell",
+                         "ruyijs/_runtime/dist/necko/XUL",
+                         "ruyijs/_runtime/dist/necko/necko_fetch.js"})
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
         missing = required - names
@@ -98,7 +108,11 @@ def main() -> int:
     version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
     expected = f"ruyijs-{version}-py3-none-macosx_26_0_arm64.whl"
     environment = os.environ.copy()
-    environment["RUYIJS_XPCSHELL"] = str(donor / "xpcshell")
+    with_xpcshell = (donor / "xpcshell").is_file()
+    if with_xpcshell:
+        environment["RUYIJS_XPCSHELL"] = str(donor / "xpcshell")
+    else:
+        environment.pop("RUYIJS_XPCSHELL", None)
     # Wheel ZIP timestamps otherwise change on every build and duplicate Git blobs.
     environment.setdefault("SOURCE_DATE_EPOCH", "315532800")
     with tempfile.TemporaryDirectory(prefix="ruyijs-wheel-") as temporary:
@@ -109,21 +123,22 @@ def main() -> int:
         wheel = staging / expected
         if not wheel.is_file():
             raise FileNotFoundError(f"expected wheel was not produced: {expected}")
-        verify_wheel(wheel)
+        verify_wheel(wheel, with_xpcshell=with_xpcshell)
         output = args.output_dir.resolve()
         output.mkdir(parents=True, exist_ok=True)
         target = output / expected
         pending = output / (expected + ".tmp")
         shutil.copy2(wheel, pending)
         pending.replace(target)
-    checksum = f"{sha256(target)}  {target.name}\n"
+    checksum = "".join(f"{sha256(path)}  {path.name}\n"
+                       for path in sorted(target.parent.glob("*.whl")))
     manifest = target.parent / "SHA256SUMS"
     pending_manifest = target.parent / "SHA256SUMS.tmp"
     pending_manifest.write_text(checksum, encoding="utf-8")
     pending_manifest.replace(manifest)
     print(f"wheel: {target}")
     print(f"size: {target.stat().st_size}")
-    print(f"sha256: {checksum.split()[0]}")
+    print(f"sha256: {sha256(target)}")
     return 0
 
 

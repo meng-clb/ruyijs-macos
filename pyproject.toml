@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=77", "packaging>=24; sys_platform == 'linux'"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ruyijs"
-version = "0.2.1"
+version = "0.3.0"
 description = "Firefox SpiderMonkey JavaScript contexts and native browser APIs for Python"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,18 +16,21 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Operating System :: Microsoft :: Windows :: Windows 10",
     "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+# On macOS the Necko helper runs on the interpreter that installed ruyijs.
 dependencies = [
     "requests; sys_platform == 'darwin'",
     "brotli; sys_platform == 'darwin'",
     "zstandard; sys_platform == 'darwin'",
     "h2; sys_platform == 'darwin'",
     "cryptography; sys_platform == 'darwin'",
-    "backports.zstd; sys_platform == 'darwin'",
     "publicsuffixlist; sys_platform == 'darwin'",
+    "backports.zstd; sys_platform == 'darwin' and python_version < '3.14'",
 ]
 
 [tool.setuptools]

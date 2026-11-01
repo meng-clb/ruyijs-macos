@@ -45,6 +45,16 @@ bool detail::ReadImagePixels(State& state, JS::HandleValue value, detail::Source
     out->width = frame.width; out->height = frame.height; out->bytes = frame.pixels;
     if (!out->width || !out->height || out->bytes.size() < size_t(out->width) * out->height * 4)
       return false;
+#if defined(__linux__)
+    // The Linux codec (web_media/image_codec_native.cpp) keeps the ImageFrame
+    // contract, premultiplied BGRA; the canvas store is premultiplied RGBA.
+    out->opaque = frame.opaque;
+    for (size_t i = 0; i < size_t(out->width) * out->height; ++i) {
+      uint8_t* px = out->bytes.data() + i * 4;
+      std::swap(px[0], px[2]);
+    }
+    return true;
+#else
     // The decoder output is straight alpha; Firefox's surface is premultiplied
     // with gfx's (c * a + 254) / 255, and X8 when every pixel is opaque.
     out->opaque = true;
@@ -56,6 +66,7 @@ bool detail::ReadImagePixels(State& state, JS::HandleValue value, detail::Source
       for (int c = 0; c < 3; ++c) px[c] = uint8_t((unsigned(px[c]) * a + 254) / 255);
     }
     return true;
+#endif
   }
   return false;
 }

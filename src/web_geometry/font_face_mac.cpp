@@ -2,6 +2,9 @@
 // The face is created at size = unitsPerEm, so Core Text advances and the
 // font box are design units. TryGetFontTable receives the DirectWrite tag
 // (byte-swapped from the HarfBuzz tag) and swaps it back for CTFontCopyTable.
+// Darwin only: on Windows IDWriteFontFace is DirectWrite's own interface, and
+// tools/build.py compiles every src/ unit on both platforms.
+#ifndef _WIN32
 #include "web_geometry/font_backend.h"
 
 #include <CoreText/CoreText.h>
@@ -136,3 +139,4 @@ void IDWriteFontFace::ReleaseFontTable(void* context) const {
 }
 void IDWriteFontFace::AddRef() const {}
 void IDWriteFontFace::Release() const {}
+#endif  // !_WIN32

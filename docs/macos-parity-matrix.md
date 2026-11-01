@@ -1,5 +1,7 @@
 # macOS 与 Windows v0.2.1 功能对等矩阵
 
+> 历史记录：本表只对应 0.2.1，不代表合并后的 0.3.0 状态。当前构建与网络路径请看 [macOS 说明](macos.zh-CN.md) 和 `tests/test_macos_runtime.py`。
+
 本文档根据 Windows v0.2.1 实际发版产物（`ruyijs-runtime-0.2.1-win-amd64.zip`）与源码实现对照，记录所有功能领域、协议契约与 macOS 对应实现状态。
 
 ## 1. 核心运行时与架构

@@ -75,8 +75,10 @@ bool ruyijs_context::Operation(bool writing, void* data, uint32_t length,
       }
       close(pipe);
       pipe = accepted;
+#if !defined(__linux__)
       int one = 1;
       setsockopt(pipe, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
       const int flags = fcntl(pipe, F_GETFL, 0);
       if (flags < 0 || fcntl(pipe, F_SETFL, flags | O_NONBLOCK) != 0) return false;
       if (!bound_name_.empty()) {
@@ -86,9 +88,15 @@ bool ruyijs_context::Operation(bool writing, void* data, uint32_t length,
       if (count) *count = 0;
       return true;
     }
+#if defined(__linux__)
+    const ssize_t transferred = writing
+        ? send(pipe, data, length, MSG_NOSIGNAL)
+        : recv(pipe, data, length, 0);
+#else
     const ssize_t transferred = writing
         ? send(pipe, data, length, 0)
         : recv(pipe, data, length, 0);
+#endif
     if (transferred < 0) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) continue;
       return false;

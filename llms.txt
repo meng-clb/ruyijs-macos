@@ -10,7 +10,7 @@ ff-ruyijs is a headless Firefox engine for Python. It embeds the genuine SpiderM
 pip install ruyijs
 ```
 
-Requires Python 3.10+ on Windows x64. The wheel bundles the pinned native runtime.
+Requires Python 3.10+ on Windows x64, macOS arm64 (macOS 26+) or Linux x86_64 (glibc 2.39+). Each wheel bundles its native runtime.
 
 ## Quick example
 

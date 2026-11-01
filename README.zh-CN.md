@@ -8,11 +8,15 @@
 原生的 Firefox JavaScript 引擎与网络栈，没有窗口、没有渲染器 ——<br>
 专为网页抓取、JS 逆向、数据采集与绕过人机验证而生。
 
-[![PyPI](https://img.shields.io/pypi/v/ruyijs?label=pypi&color=111111&logo=pypi&logoColor=white)](https://pypi.org/project/ruyijs/) [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-111111?logo=python&logoColor=white)](https://pypi.org/project/ruyijs/) [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20商业授权-111111)](LICENSE) [![Windows](https://img.shields.io/badge/Windows%20x64-0078D4?logo=windows&logoColor=white)](https://pypi.org/project/ruyijs/) [![LinuxDO](https://img.shields.io/badge/LinuxDO-社区-FFB003?logo=discourse&logoColor=white)](https://linux.do/t/topic/3078486)
+[![PyPI](https://img.shields.io/pypi/v/ruyijs?label=pypi&color=111111&logo=pypi&logoColor=white)](https://pypi.org/project/ruyijs/) [![下载量](https://img.shields.io/pepy/dt/ruyijs?label=下载量&color=111111&logo=pypi&logoColor=white)](https://pepy.tech/projects/ruyijs) [![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-111111?logo=python&logoColor=white)](https://pypi.org/project/ruyijs/) [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20商业授权-111111)](LICENSE) [![Windows](https://img.shields.io/badge/Windows%20x64-0078D4?logo=windows&logoColor=white)](https://pypi.org/project/ruyijs/) [![macOS](https://img.shields.io/badge/macOS%20arm64-000000?logo=apple&logoColor=white)](https://pypi.org/project/ruyijs/) [![Linux](https://img.shields.io/badge/Linux%20x86__64-FCC624?logo=linux&logoColor=black)](https://pypi.org/project/ruyijs/) [![LinuxDO](https://img.shields.io/badge/LinuxDO-社区-FFB003?logo=discourse&logoColor=white)](https://linux.do/t/topic/3078486)
 
 <sub>赞助商</sub>
 
-<a href="https://www.fastaitoken.com"><img src="assets/sponsor-fastaitoken.png" height="42" alt="FastAIToken"></a>
+<a href="https://www.fastaitoken.com"><img src="assets/sponsor-fastaitoken.png" height="42" alt="FastAIToken"></a>&nbsp;&nbsp;&nbsp;<a href="https://www.fastaitoken.com" title="Claude"><img src="assets/models/claude.svg" width="42" height="42" alt="Claude"></a>&nbsp;&nbsp;<a href="https://www.fastaitoken.com" title="GPT"><img src="assets/models/gpt.svg" width="42" height="42" alt="GPT"></a>&nbsp;&nbsp;<a href="https://www.fastaitoken.com" title="Grok"><img src="assets/models/grok.svg" width="42" height="42" alt="Grok"></a>&nbsp;&nbsp;<a href="https://www.fastaitoken.com" title="DeepSeek"><img src="assets/models/deepseek.svg" width="42" height="42" alt="DeepSeek"></a>&nbsp;&nbsp;<a href="https://www.fastaitoken.com" title="GLM"><img src="assets/models/glm.svg" width="42" height="42" alt="GLM"></a>
+
+<sub>贡献者</sub>
+
+<a href="https://github.com/Facetomyself" title="Facetomyself · #4 macOS arm64 外壳、#6 QUIC 配置、#7 macOS 代理、#9 macOS Necko 适配器"><img src="assets/contributors/Facetomyself.png" width="48" height="48" alt="Facetomyself"></a>&nbsp;&nbsp;<a href="https://github.com/Starktomy" title="Starktomy · #5 Linux 运行时"><img src="assets/contributors/Starktomy.png" width="48" height="48" alt="Starktomy"></a>&nbsp;&nbsp;<a href="https://github.com/isesword" title="isesword · #8 macOS Core Text 排版与 Firefox 对齐"><img src="assets/contributors/isesword.png" width="48" height="48" alt="isesword"></a>&nbsp;&nbsp;<a href="https://github.com/sbbbsbbb" title="sbbbsbbb · #10 macOS TLS 与 HTTP/2"><img src="assets/contributors/sbbbsbbb.png" width="48" height="48" alt="sbbbsbbb"></a>
 
 **[安装](#-安装)** &nbsp;·&nbsp; **[功能](#-功能)** &nbsp;·&nbsp; **[攻克的验证系统](#-攻克的验证系统)** &nbsp;·&nbsp; **[示例](#-运行示例)** &nbsp;·&nbsp; **[FAQ](#-常见问题)** &nbsp;·&nbsp; **[联系](#-联系方式)** &nbsp;·&nbsp; **[LinuxDO](https://linux.do/t/topic/3078486)** &nbsp;·&nbsp; [English](README.md) · **简体中文**
 
@@ -40,7 +44,7 @@ Headless Chrome 和 Playwright 给你的是一整个浏览器：一个负责 GPU
 
 如果你做网页抓取、逆向 Web JavaScript，或采集 challenge 背后的数据，它就适合你。如果普通 HTTP 客户端已经能拿到页面，那就不需要它。
 
-Windows x64 以 wheel 发布，需要 **Python 3.10+**（已在 Python 3.14 下验证）。macOS arm64 可以源码构建，fork Release 上也有 wheel；donor 布局和仍然留空的表面写在 [docs/macos.zh-CN.md](docs/macos.zh-CN.md)。
+PyPI 上有 **Windows x64**、**macOS arm64** 和 **Linux x86_64** 的 wheel，需要 **Python 3.10+**。三个平台的 wheel 都由 GitHub Actions 从官方 Firefox 159.0 源码构建（见[从源码构建](#从源码构建)）。
 
 ## 📦 安装
 
@@ -48,16 +52,18 @@ Windows x64 以 wheel 发布，需要 **Python 3.10+**（已在 Python 3.14 下�
 python -m pip install ruyijs
 ```
 
-**系统要求：** Windows x64（64 位）+ Python 3.10+，已在 Python 3.10 – 3.14 下验证。
+**系统要求：** 64 位 Python 3.10+；Windows x64、macOS 26 及以上（Apple Silicon），或 glibc 2.39 及以上的 Linux x86_64（Ubuntu 24.04、Debian 13、Fedora 40 及更新版本）。
 
 Windows 的 wheel 内置 SHA256 锁定的 SpiderMonkey + Necko 运行时（约 42 MB），安装后即可离线运行，无需下载浏览器，无外部依赖。
 
-**macOS arm64** 不使用这个 PyPI wheel。它用 Python 3.12 从源码构建，并依赖放在仓库外面的两份官方 Firefox donor，也可以安装维护者 fork Release `v0.2.1` 上的 `macosx_26_0_arm64` wheel。这个 wheel 不在 PyPI。这一轮查过的页面路径是直连 HTTPS 上的 HTTP/2。ALPN 为 `http/1.1` 时会写 HTTP/1.1，这一段做过单元测试，没有对活的源打开过。步骤和未完成的表面见 [docs/macos.zh-CN.md](docs/macos.zh-CN.md)。
+**macOS arm64：** `macosx_26_0_arm64` wheel 通过 `libnecko_core.dylib` 和 `libnecko_quic.dylib` 直连 HTTPS 加载页面，二者链接同一份 Firefox 源码编出的 NSS。它不带 xpcshell。没有 xpcshell 时，`Context(proxy=...)` 用 HTTP CONNECT 进入 `libnecko_core`。已经发布的 0.3.0 wheel 要等下一次发布才带上这条隧道。Necko helper 运行在安装 ruyijs 的那个 Python 上，它需要的包是 macOS wheel 的依赖。细节和尚未完成的部分见 [docs/macos.zh-CN.md](docs/macos.zh-CN.md)。
+
+**Linux x86_64：** `manylinux_2_39_x86_64` wheel 是原生 ELF 构建，由 [@Starktomy](https://github.com/Starktomy) 在 #5 贡献。文字用 fontconfig、FreeType 和 HarfBuzz 渲染机器上已安装的字体，WebCrypto 用 OpenSSL 3，Necko helper（NSS 3.131，HTTP/3 用 Neqo）自带 Python。见 [docs/linux.zh-CN.md](docs/linux.zh-CN.md)。
 
 本仓库的 `wheels/` 目录也以普通 Git 文件保存了可直接安装的 macOS arm64 wheel。在 macOS 26 或更新版本上拉取仓库后，执行：
 
 ```sh
-python3.12 -m pip install ./wheels/ruyijs-0.2.1-py3-none-macosx_26_0_arm64.whl
+python3.12 -m pip install ./wheels/ruyijs-0.3.0-py3-none-macosx_26_0_arm64.whl
 ```
 
 wheel 内含原生运行时，安装时无需 Firefox 源码；pip 会安装声明的 Python 依赖。维护者在构建 donor runtime 后，可用 `python3.12 -B tools/package_macos_wheel.py` 重新打包。
@@ -70,8 +76,16 @@ python -m pip install --upgrade ruyijs
 验证安装：
 ```python
 import ruyijs
-print(ruyijs.__version__)   # 0.2.1
+print(ruyijs.__version__)   # 0.3.0
 ```
+
+### 从源码构建
+
+```sh
+git clone --recurse-submodules https://github.com/cutetailbud/ff-ruyijs
+```
+
+子模块 `firefox/` 就是官方 Firefox 159.0 发布版（`mozilla-firefox/firefox` 的 `FIREFOX_159_0_RELEASE`，浅克隆）。构建 PyPI wheel 的工作流就是本地构建的参照：[`.github/workflows/wheels.yml`](.github/workflows/wheels.yml) 在 Windows 和 macOS 上运行 `ci/firefox/build.sh js|browser|toolchain` 与 `tools/build.py`，在 Linux 上依次运行 `ci/linux/build.sh` 的各个步骤。
 
 ## 🚀 快速开始
 
@@ -149,7 +163,7 @@ with Context() as context:
 
 ### 基于 Necko 的原生网络
 
-页面内 `fetch` 与 XHR 走真实 HTTP/1.1、2、3，并通过按上下文隔离的代理。用 `put_resource()` 自行提供响应即可离线复跑整条已捕获的流程。用 `net_log()` 查看每一次请求。macOS 源码构建这一轮查过的页面路径是直连 HTTPS 上的 HTTP/2，界限见 `docs/macos.zh-CN.md`。
+页面内 `fetch` 与 XHR 走真实 HTTP/1.1、2、3，并通过按上下文隔离的代理。用 `put_resource()` 自行提供响应即可离线复跑整条已捕获的流程。用 `net_log()` 查看每一次请求。macOS 上页面走直连 HTTPS。有 xpcshell 时代理仍走它；没有时走 HTTP CONNECT（`docs/macos.zh-CN.md`）。已经发布的 0.3.0 wheel 还没有这条隧道。
 
 ### 原生 TLS 指纹 —— 自由切换 Firefox 100 – 159
 
@@ -157,7 +171,7 @@ with Context() as context:
 
 Necko 传输层可**自由切换 Firefox 100 – 159 的 TLS 配置**，每个版本均精确复现该版本的 ClientHello，在线上呈现不同的 JA3 / JA4 指纹——可用于轮换浏览器身份、规避按版本封禁，或测试站点对不同 Firefox 版本的反应。
 
-每个 Context 用 `tls=` 选择版本（`"100"`–`"159"`，默认 159）。在 Windows 上，这会改变该 Context 的 Necko 传输层的 TLS ClientHello、HTTP/2 设置和 HTTP/3 优先级；如需页面内一致，请用 `configure_fingerprint` 设置对应版本的 User-Agent。在 macOS 上，库报告 NSS 3.131 时，直连 HTTPS 走 arm64 `libnecko_core.dylib`。外壳先找 `dist/necko_tls/libnecko_core.dylib`，再找暂存的 `dist/necko` 副本。已经设置的 `NECKO_CORE_LIBRARY` 优先。`Context()` 和 `Context(tls="100")` 都打开了 `https://example.com/`，状态 200，协议 `h2`。测到的握手是 159 为 15 个套件、5 个组、3 个 key share，100 为 17、6、2。簇边界 100、119、132、135、151、154、156、159 的库内 GET 也返回 200 和 `h2`，个数与配置表一致。其余版本没有逐个当页面打开。调用方没写的请求头和 HTTP/2 设置跟随 0.2.1 产品表里这个 `tls=` 的值。调用方写了的头优先。这份表里的 HTTP/3 字段不用，HTTP/3 也没有变。代理、库缺失或 NSS 版本不同仍走 donor xpcshell。这次没有重测代理。明文 HTTP 仍从这份 donor 返回 `necko 804b0033`（`docs/tls-profile.zh-CN.md`）。
+每个 Context 用 `tls=` 选择版本（`"100"`–`"159"`，默认 159）。在 Windows 上，这会改变该 Context 的 Necko 传输层的 TLS ClientHello、HTTP/2 设置和 HTTP/3 优先级；如需页面内一致，请用 `configure_fingerprint` 设置对应版本的 User-Agent。在 macOS 上，库报告 NSS 3.131 时，直连 HTTPS 走 arm64 `libnecko_core.dylib`。外壳先找 `dist/necko_tls/libnecko_core.dylib`，再找暂存的 `dist/necko` 副本。已经设置的 `NECKO_CORE_LIBRARY` 优先。`Context()` 和 `Context(tls="100")` 都打开了 `https://example.com/`，状态 200，协议 `h2`。测到的握手是 159 为 15 个套件、5 个组、3 个 key share，100 为 17、6、2。簇边界 100、119、132、135、151、154、156、159 的库内 GET 也返回 200 和 `h2`，个数与配置表一致。其余版本没有逐个当页面打开。调用方没写的请求头和 HTTP/2 设置跟随 0.2.1 产品表里这个 `tls=` 的值。调用方写了的头优先。这份表里的 HTTP/3 字段不用，HTTP/3 也没有变。代理、库缺失或 NSS 版本不同仍走 donor xpcshell。这次没有重测代理。明文 HTTP 仍从这份 donor 返回 `necko 804b0033`（`docs/tls-profile.zh-CN.md`）。PyPI 上的 macOS wheel 不带 xpcshell，所以代理这种情况在那里不可用。
 
 ```python
 with Context(proxy="http://127.0.0.1:7890", timeout=30, tls="120") as context:
@@ -246,7 +260,7 @@ python -m ruyijs.examples creepjs              # CreepJS 指纹审计
 
 ## 📏 使用范围与限制
 
-ruyiJS 在 **Windows x64** 上提供 JavaScript 执行及广泛的 Web API 环境，**macOS arm64** 则通过源码构建或 fork Release 的 wheel 提供同一外壳。它**不含浏览器窗口，也没有完整的页面布局与渲染** —— 它是面向自动化、分析与研究的工具。请在遵守目标站点服务条款与适用法律的前提下使用。macOS 与 Windows 的比对和后续计划见 [docs/macos.zh-CN.md](docs/macos.zh-CN.md)。
+ruyiJS 在 **Windows x64**、**macOS arm64** 和 **Linux x86_64** 上提供 JavaScript 执行及广泛的 Web API 环境。它**不含浏览器窗口，也没有完整的页面布局与渲染** —— 它是面向自动化、分析与研究的工具。请在遵守目标站点服务条款与适用法律的前提下使用。平台差异见 [docs/macos.zh-CN.md](docs/macos.zh-CN.md) 和 [docs/linux.zh-CN.md](docs/linux.zh-CN.md)。
 
 **相关项目：** [**ruyiHttp**](https://gitee.com/losenine888/ruyiHttp) —— 基于 Firefox 原生网络组件的 Requests 风格 Python 请求库。
 
@@ -255,21 +269,21 @@ ruyiJS 在 **Windows x64** 上提供 JavaScript 执行及广泛的 Web API 环�
 <details>
 <summary><b>支持哪些 Python 版本？</b></summary>
 
-Windows x64（64 位）上的 Python 3.10 及以上版本，已测试至 Python 3.14。macOS 源码构建的 Necko helper 使用 Python 3.12。
+各平台都支持 64 位 Python 3.10 及以上版本，已测试至 Python 3.14。macOS 的 Necko helper 运行在安装 ruyijs 的解释器上；Linux wheel 为它自带 Python 3.14。
 </details>
 
 <details>
 <summary><b>支持 macOS 或 Linux 吗？</b></summary>
 
-macOS arm64 可以用源码构建，也可以打 `macosx_26_0_arm64` wheel。这个 wheel 不上传到 PyPI。维护者 fork 的 Release `v0.2.1` 放着这份 wheel 和 `ruyijs-runtime-macos-arm64.zip`。和 Windows 的比对以及后续计划写在 [docs/macos.zh-CN.md](docs/macos.zh-CN.md)。Linux 尚未支持。
+支持。PyPI 上有 `macosx_26_0_arm64` wheel（macOS 26 及以上）和 `manylinux_2_39_x86_64` wheel（glibc 2.39 及以上）。已经发布的 0.3.0 macOS wheel 没有 xpcshell，也没有代理隧道；这次改动之后，没有 xpcshell 时源码走 HTTP CONNECT。见 [docs/macos.zh-CN.md](docs/macos.zh-CN.md) 和 [docs/linux.zh-CN.md](docs/linux.zh-CN.md)。
 
-JS 引擎是 Mozilla 官方的 **SpiderMonkey**，网络库是 Mozilla 官方的 **Necko**。两者都从 Firefox 源码树编译，并且放在本仓库外面。
+JS 引擎是 Mozilla 官方的 **SpiderMonkey**，网络库是 Mozilla 官方的 **Necko**。两者都从官方 Firefox 源码编译，源码以 `firefox/` 子模块引用。
 </details>
 
 <details>
 <summary><b>需要下载浏览器吗？</b></summary>
 
-Windows 不需要。wheel 内置锁定版 SpiderMonkey + Necko 运行时，`pip install ruyijs` 后即可离线运行。macOS 先在本仓库旁边编译两份 donor，之后 `setup.py` 可以打出本地 wheel，安装后从包内找到 `dist/js` 和 `dist/necko/xpcshell`。见 [docs/macos.zh-CN.md](docs/macos.zh-CN.md)。PyPI 上的 wheel 是 Windows 运行时。
+不需要。每个 wheel 都内置从 Firefox 159.0 源码编出的 SpiderMonkey + Necko 运行时，`pip install ruyijs` 不需要浏览器。macOS 上 pip 还会装好 Necko helper 需要的 Python 包。
 </details>
 
 <details>

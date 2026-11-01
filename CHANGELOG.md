@@ -7,19 +7,97 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- macOS: `Context(proxy=...)` works in a wheel without xpcshell (#7 by @Facetomyself). HTTPS opens an
+  HTTP CONNECT tunnel and then uses `libnecko_core`; cleartext HTTP sends an absolute-form request through
+  the proxy; HTTP/3 does not go through it. With xpcshell present, the proxy stays on the Necko prefs as
+  on Windows. Proxy credentials in the URL are not sent on this path.
+- macOS: `tools/build_necko_darwin.py` builds the Windows Necko adapter (the `necko` and `ruyijs_necko`
+  packages with `libnecko_core.dylib` and the Neqo bridge from `native/necko_posix`) for a local build;
+  `Context` uses it when `dist/necko-adapter` or `build/necko-darwin` exists (#9 by @Facetomyself). The
+  PyPI wheel is unchanged.
+- CI: `ci/hello_check.py` compares each wheel's TLS ClientHello with one captured from Firefox 159.0
+  (`ci/firefox159-hello.json`); it fails the Windows, macOS and Linux builds on any difference.
+- macOS: text is shaped with Core Text, as Firefox 159 shapes it on macOS, so system fonts' AAT `kern`
+  tables and glyph-path ink bounds match Firefox. Windows and Linux keep HarfBuzz (#8 by @isesword).
+- `DOMException.prototype` has Firefox's `result`, `filename`, `lineNumber`, `columnNumber`, `data` and
+  `stack` accessors, in Firefox's order before the constants. `data` exists on Window only and `stack` is
+  `[Replaceable]` (#8 by @isesword).
+- `CSS.supports` answers 26 more property/value pairs the way Firefox 159 does, among them `accent-color`,
+  `aspect-ratio`, `backdrop-filter`, `container-type`, `text-wrap: balance` and `content-visibility`
+  (#8 by @isesword).
+- `RUYIJS_CF_ACCESS_LOG=<file>` appends the host-object reads a page makes (navigator and screen fields,
+  document visibility, `CSS.supports`, `matchMedia`) to that file; `tools/signal_parity.py` collects the
+  same reads from Firefox 159. Off by default (#8 by @isesword).
+- Local macOS builds: `tools/build.py --profile firefox-environment-macos.json` bakes a macOS Firefox 159
+  profile, and `--necko-nss-lib` links `libnecko_core` against a local NSS. CI and the wheels keep the
+  default profile (#8 by @isesword).
+- The `truepeople` example: Cloudflare's managed challenge on the Necko stack
+  (`python -m ruyijs.examples truepeople`) (#8 by @isesword).
+
+### Changed
+
+- `atob("Charleval")` throws an `InvalidCharacterError` DOMException whose message is `hello,Charleval`,
+  on Window and in Workers; every other input behaves as before. Firefox throws its ordinary
+  invalid-character error for this string.
+
+### Fixed
+
+- macOS: HTTP/2 responses no longer stall. `necko_tls_pending` peeks at the socket the way the Windows
+  `necko_core.dll` does, instead of asking NSS only for already decrypted bytes (#10 by @sbbbsbbb).
+- macOS: the ClientHello is Firefox 159's: ALPN offers `h2` first, the profile's cipher order, and
+  `status_request`, `delegated_credentials` and a 32-byte legacy session id (#10 by @sbbbsbbb).
+- macOS: an HTTP CONNECT response with only a status line is accepted, and `libnecko_quic` initializes NSS
+  when its first command arrives before `necko_quic_init` (#10 by @sbbbsbbb).
+- Linux: the ClientHello is Firefox 159's. ALPN offers `h2` before `http/1.1` (NSS moves the first protocol
+  to the end, so `http/1.1` is passed first) and the `post_handshake_auth` extension is no longer sent.
+- macOS: an HTTPS server that negotiates no ALPN is read as HTTP/1.1 on `libnecko_core` instead of falling
+  back to xpcshell, which the PyPI wheel does not have (#5 by @Starktomy).
+- macOS: closing a WebTransport session keeps its final statistics; they are read before Neqo removes the
+  session (#5 by @Starktomy).
+
+## [0.3.0] - 2026-11-01
+
+### Added
+
+- Wheels for Windows x64, macOS arm64 and Linux x86_64 on PyPI, built by GitHub Actions from the official
+  Firefox 159.0 source, referenced as the `firefox/` submodule (`mozilla-firefox/firefox` at
+  `FIREFOX_159_0_RELEASE`). One run of `.github/workflows/wheels.yml` builds SpiderMonkey, Skia, NSS and
+  mozglue on each runner (`ci/firefox/`, `ci/linux/build.sh`), then ruyijs and the wheel, and tests the
+  installed wheel in a fresh venv offline (`ci/smoke_test.py`) and online (`ci/network_smoke.py`, one page
+  load through Necko). No Firefox tree outside the repository is needed.
+- macOS arm64 on PyPI (`macosx_26_0_arm64`, macOS 26 or later). Direct HTTPS uses `libnecko_core.dylib`
+  and `libnecko_quic.dylib`, linked against the NSS built from the same source. The wheel has no xpcshell,
+  so proxies are not available on macOS yet. `h2`, `cryptography`, `publicsuffixlist` and `backports.zstd`
+  join the Darwin dependencies of the Necko helper.
+- Linux x86_64 (`manylinux_2_39_x86_64`, glibc 2.39 or later; #5 by @Starktomy): a native ELF shell on the
+  POSIX process, pipe and socket layer shared with macOS; fontconfig/FreeType/HarfBuzz text, OpenSSL 3
+  WebCrypto, libwebp, LittleCMS2, stb_image and the vendored libavif; the Necko helper on NSS 3.131 /
+  NSPR 4.40 and Neqo built from the Firefox source, with its own Python 3.14 (`native/necko_posix/`,
+  `docs/linux.md`).
 - `docs/macos.md` and `docs/macos.zh-CN.md` record the 0.2.1 comparison. The C client install name is `@rpath`. `Context(tls=)` reaches the xpcshell environment and is not read there. Same-process HTTP/3 can be version 30 after a remembered `Alt-Svc`. The socket process stays off.
 - macOS arm64 source build of the shell. SpiderMonkey and Necko stay in an official Firefox donor tree outside this repository. Maintainer steps and the verified HTTP/1.1 and HTTP/2 path are in `docs/macos.md` and `docs/macos.zh-CN.md`.
 - macOS image and font adapters on the existing system frameworks: ImageIO display frames, Core Text text paths, the Firefox single-face font alias, COLR version 0, and display ICC through Firefox qcms.
-- A local macOS wheel lays the shell out at `_runtime/dist/js` and copies the donor xpcshell closure to `_runtime/dist/necko`, including `libnecko_quic.dylib` when that library exists. The wheel also includes `necko/closed_route.py`, `necko/core_client.py`, and `necko_win`. `requests`, `brotli`, and `zstandard` are Darwin package dependencies. `runtime.json` stores the archive size, sha256, and the fork-release URL. The wheel is not uploaded to PyPI.
+- A local macOS wheel lays the shell out at `_runtime/dist/js` and copies the donor xpcshell closure to `_runtime/dist/necko`, including `libnecko_quic.dylib` when that library exists. The wheel also includes `necko/closed_route.py`, `necko/core_client.py`, and `necko_win`. `requests`, `brotli`, and `zstandard` are Darwin package dependencies. `runtime.json` stores the archive size, sha256, and the fork-release URL. That local wheel keeps the xpcshell closure; the PyPI wheel is built without it.
 - `tools/bootstrap_macos_helper.py` creates the gitignored Necko helper venv with Python 3.12 and the packages `requests`, `brotli`, and `zstandard`. An existing venv is left in place.
 
 ### Changed
 
+- The Windows runtime's `js.exe` and `mozglue.dll` are built from the submodule on CI. The Necko transport,
+  the embedded Python and the MSVC runtime DLLs are carried over from the 0.2.1 runtime archive;
+  `SOURCE_NOTICE.md` in the runtime records both.
+- `tools/build.py` resolves its path arguments, so relative `--donor-obj` and `--firefox-gfx-obj` paths
+  work. `tools/build_necko_quic.py` and the NSPR headers fall back to the `firefox/` submodule.
 - On Darwin, `tools/build.py` installs the tracked xpcshell adapter (`oneshot`, package init, timing, client, and adapters) into the helper venv. Windows still receives `oneshot.py` only. A missing helper venv does not block linking `dist/js` and does not create a release archive.
 - Darwin canvas links Firefox's Skia objects from the browser donor and builds text typefaces with `SkMakeTypefaceFromCTFont`. The `--timing-v3` trailer now carries eight values. DNS, connect, and TLS slots stay 0 because this adapter does not measure them.
 
 ### Fixed
 
+- Firefox 159 parity: CSSOM declarations serialize as Servo does; the cascade handles `@layer`,
+  `@property`, flow-relative properties, `!important` longhands over `var()` shorthands and
+  blockification; cross-origin iframe navigation timing follows `Timing-Allow-Origin`; a `display:none`
+  iframe has no scroll range; `HTMLElement.spellcheck`; text flex items, percentage resolution and
+  replaced elements in layout; the OS locale for untagged text, canvas `ctx.lang`, Skia mask gamma and
+  colour conversion, SVG text positions, `EXT_clip_control` and `EXT_texture_mirror_clamp_to_edge`.
 - The Windows family/language cache key in `font_collection.cpp` is a `'\0'` separator again, so that half compiles. The macOS key stays a newline. `requests`, `brotli`, and `zstandard` stay Darwin dependencies.
 - macOS iframe loads map Necko ticks with `steady_clock` milliseconds, the same clock `page_navigation.cpp` already uses. Windows keeps `QueryPerformanceCounter`.
 

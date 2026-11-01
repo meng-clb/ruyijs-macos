@@ -1,4 +1,5 @@
 """Build a platform wheel containing the unchanged standalone runtime."""
+import os
 from pathlib import Path
 import platform
 import shutil
@@ -45,6 +46,19 @@ class BuildPython(build_py):
                     raise ValueError(f"Build directory contains another runtime version: {target}")
             else:
                 shutil.copytree(runtime, target)
+        elif tag.startswith("manylinux"):
+            # dist/js, libruyijs_client.so and the NSS/Neqo helper built by
+            # tools/build_linux.py and tools/build_necko_linux.py, made
+            # relocatable with every non-glibc library (tools/bundle_linux.py).
+            executable = project / "dist/js"
+            if not executable.is_file():
+                raise FileNotFoundError("Build the Linux runtime with tools/build_linux.py first")
+            with executable.open("rb") as stream:
+                header = stream.read(20)
+            if header[:6] != b"\x7fELF\x02\x01" or header[18:20] != b"\x3e\x00":
+                raise RuntimeError("dist/js is not a little-endian x86_64 ELF executable")
+            from bundle_linux import bundle
+            bundle(project, target)
         else:
             runtime = project / "dist"
             if not (runtime / "js").is_file() or not (runtime / "libmozglue.dylib").is_file():
@@ -64,14 +78,15 @@ class BuildPython(build_py):
             from macos_runtime import donor_bin, stage_necko
             stage_necko(target / "dist" / "necko", donor_bin(project),
                         project / "src/resource_network/necko_fetch.js")
-            # Strip only the packaged XUL copy; the donor build stays intact.
+            # A local donor can include XUL; CI builds the wheel without it.
             xul = target / "dist" / "necko" / "XUL"
-            stripped = xul.with_name("XUL.stripped")
-            try:
-                subprocess.run(["xcrun", "strip", "-S", "-x", "-o", str(stripped), str(xul)], check=True)
-                stripped.replace(xul)
-            finally:
-                stripped.unlink(missing_ok=True)
+            if xul.is_file():
+                stripped = xul.with_name("XUL.stripped")
+                try:
+                    subprocess.run(["xcrun", "strip", "-S", "-x", "-o", str(stripped), str(xul)], check=True)
+                    stripped.replace(xul)
+                finally:
+                    stripped.unlink(missing_ok=True)
             _install_darwin_helper(Path(self.build_lib), project)
         examples = Path(self.build_lib) / "ruyijs/examples"
         if examples.exists():
@@ -131,7 +146,12 @@ def _platform_tag():
         return "win_amd64"
     if sys.platform == "darwin" and machine in ("arm64", "aarch64"):
         return "macosx_26_0_arm64"
-    raise RuntimeError("ruyijs wheels are built for Windows x64 or macOS arm64")
+    if sys.platform.startswith("linux") and machine in ("x86_64", "amd64"):
+        # The bundle carries every library except glibc (tools/bundle_linux.py),
+        # so the floor is the glibc of the build host.
+        major, minor = os.confstr("CS_GNU_LIBC_VERSION").split()[1].split(".")[:2]
+        return f"manylinux_{major}_{minor}_x86_64"
+    raise RuntimeError("ruyijs wheels are built for Windows x64, macOS arm64 or Linux x86_64")
 
 
 class PlatformWheel(bdist_wheel):

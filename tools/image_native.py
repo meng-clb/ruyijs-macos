@@ -9,14 +9,44 @@ from concurrent.futures import ThreadPoolExecutor
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
-def build(native):
-    source=native.root/'vendor/image-native'
-    directory=native.directory/'image-native'
-    directory.mkdir(parents=True,exist_ok=True)
+def frozen_inputs(source):
+    """SHA-256 of each vendor/image-native file, checked against manifest.json."""
     manifest=json.loads((source/'manifest.json').read_text('utf8'))
     inputs={row['path']:digest(source/row['path']) for row in manifest['files']}
     if any(inputs[row['path']]!=row['sha256'] for row in manifest['files']):
         raise ValueError('Image codec source differs from frozen manifest')
+    return inputs
+
+def portable_units(source,windows):
+    """(source, object name, flags) of each portable libavif, libyuv and dav1d unit."""
+    yuv=source/'libyuv'
+    units=[]
+    avif=source/'libavif'
+    for path in sorted((avif/'src').glob('*.c')):
+        if path.name.startswith('codec_') and path.name!='codec_dav1d.c':continue
+        units.append((path,'avif_'+path.stem,['-DAVIF_CODEC_DAV1D=1','-DDAV1D_API=','-DAVIF_LIBYUV_ENABLED=1',
+          '-I'+str(avif/'include'),'-I'+str(source/'dav1d/include'),'-I'+str(yuv/'include')]))
+    yuv_inventory=(yuv/'CMakeLists.txt').read_text('utf8').split('set ( ly_common_source_files',1)[1].split(')',1)[0]
+    for name in re.findall(r'\$\{ly_src_dir\}/([^\s]+\.cc)',yuv_inventory):
+        units.append((yuv/'source'/name,'yuv_'+Path(name).stem,['-I'+str(yuv/'include'),'-DLIBYUV_DISABLE_X86=1','-DLIBYUV_DISABLE_NEON=1','-DLIBYUV_DISABLE_SVE=1','-DLIBYUV_DISABLE_SME=1']))
+    dav=source/'dav1d'
+    moz=(dav/'moz.build').read_text('utf8')
+    c_units=sorted(set(re.findall(r"'../../third_party/dav1d/(src/[^']+\.c)'",moz)))
+    flags=['-DDAV1D_API=','-DSTACK_ALIGNMENT=16',
+           '-I'+str(dav),'-I'+str(dav/'include'),'-I'+str(dav/'src')]
+    if windows:
+        flags += ['-DHAVE_ALIGNED_MALLOC=1','-D_WIN32_WINNT=0x0601','-D_CRT_SECURE_NO_WARNINGS']
+    units += [(dav/unit,'dav_'+Path(unit).stem,flags) for unit in c_units]
+    block=moz.split('bitdepth_basenames = [',1)[1].split(']',1)[0]
+    for unit in re.findall(r"'([^']+\.c)'",block):
+        for bits in (8,16):units.append((dav/'src'/unit,f'dav_{bits}_{Path(unit).stem}',flags+[f'-DBITDEPTH={bits}']))
+    return units
+
+def build(native):
+    source=native.root/'vendor/image-native'
+    directory=native.directory/'image-native'
+    directory.mkdir(parents=True,exist_ok=True)
+    inputs=frozen_inputs(source)
     compiler=native.compiler()[0]
     librarian,lib_prefix=native.librarian()
     rustc=native.donor.substs['RUSTC']
@@ -35,27 +65,7 @@ def build(native):
     if stamp.is_file() and library.is_file() and not native.incremental['disabled']:
         previous=json.loads(stamp.read_text('utf8'))
         if previous.get('signature')==signature and previous.get('output')==digest(library) and color_library.is_file() and previous.get('colorOutput')==digest(color_library):return [library,color_library]
-    yuv=source/'libyuv'
-    units=[]
-    avif=source/'libavif'
-    for path in sorted((avif/'src').glob('*.c')):
-        if path.name.startswith('codec_') and path.name!='codec_dav1d.c':continue
-        units.append((path,'avif_'+path.stem,['-DAVIF_CODEC_DAV1D=1','-DDAV1D_API=','-DAVIF_LIBYUV_ENABLED=1',
-          '-I'+str(avif/'include'),'-I'+str(source/'dav1d/include'),'-I'+str(yuv/'include')]))
-    yuv_inventory=(yuv/'CMakeLists.txt').read_text('utf8').split('set ( ly_common_source_files',1)[1].split(')',1)[0]
-    for name in re.findall(r'\$\{ly_src_dir\}/([^\s]+\.cc)',yuv_inventory):
-        units.append((yuv/'source'/name,'yuv_'+Path(name).stem,['-I'+str(yuv/'include'),'-DLIBYUV_DISABLE_X86=1','-DLIBYUV_DISABLE_NEON=1','-DLIBYUV_DISABLE_SVE=1','-DLIBYUV_DISABLE_SME=1']))
-    dav=source/'dav1d'
-    moz=(dav/'moz.build').read_text('utf8')
-    c_units=sorted(set(re.findall(r"'../../third_party/dav1d/(src/[^']+\.c)'",moz)))
-    flags=['-DDAV1D_API=','-DSTACK_ALIGNMENT=16',
-           '-I'+str(dav),'-I'+str(dav/'include'),'-I'+str(dav/'src')]
-    if native.donor.windows:
-        flags += ['-DHAVE_ALIGNED_MALLOC=1','-D_WIN32_WINNT=0x0601','-D_CRT_SECURE_NO_WARNINGS']
-    units += [(dav/unit,'dav_'+Path(unit).stem,flags) for unit in c_units]
-    block=moz.split('bitdepth_basenames = [',1)[1].split(']',1)[0]
-    for unit in re.findall(r"'([^']+\.c)'",block):
-        for bits in (8,16):units.append((dav/'src'/unit,f'dav_{bits}_{Path(unit).stem}',flags+[f'-DBITDEPTH={bits}']))
+    units=portable_units(source,native.donor.windows)
     def compile_one(item):
         path,name,flags=item
         output=directory/(name+native.donor.object_suffix)

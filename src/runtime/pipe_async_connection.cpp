@@ -106,8 +106,10 @@ PipeResult PipeAccept(void*& pipe, PipeAsync& state) {
     close(conn);
     return PipeResult::Failed;
   }
+#if !defined(__linux__)
   int one = 1;
   setsockopt(conn, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
   pipe = PipeFromFd(conn);
   state.connected = true;
   return PipeResult::Ready;
@@ -116,7 +118,11 @@ PipeResult PipeIo(void* pipe, PipeOperation& op, bool writing,
                     void* bytes, unsigned size, unsigned* transferred) {
   *transferred = 0;
   const int fd = PipeFd(pipe);
+#if defined(__linux__)
+  const ssize_t count = writing ? send(fd, bytes, size, MSG_NOSIGNAL) : recv(fd, bytes, size, 0);
+#else
   const ssize_t count = writing ? send(fd, bytes, size, 0) : recv(fd, bytes, size, 0);
+#endif
   op.pending = false;
   if (count < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {

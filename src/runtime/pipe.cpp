@@ -2,6 +2,12 @@
 #include "runtime/pipe_async.h"
 #include <cstdint>
 #include <cstring>
+#if defined(__linux__)
+// At file scope: the POSIX block below includes <sys/stat.h> inside the
+// namespace, which only works when an earlier header already pulled it in.
+#include <csignal>
+#include <sys/stat.h>
+#endif
 
 namespace ruyijs {
 Pipe::~Pipe() { Close(); }
@@ -87,8 +93,15 @@ bool SetNonblock(int fd) {
   return flags >= 0 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
 }
 void IgnoreSigPipe(int fd) {
+#if defined(__linux__)
+  // No SO_NOSIGPIPE on Linux: the shell ignores SIGPIPE, so a peer that went
+  // away is an EPIPE on the RPC socket and on the Necko helper pipes.
+  (void)fd;
+  signal(SIGPIPE, SIG_IGN);
+#else
   int one = 1;
   setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
 }
 }  // namespace
 
@@ -153,7 +166,11 @@ bool Pipe::Transfer(void* data, unsigned length, bool writing) {
   const int fd = PipeFd(handle_);
   auto* bytes = static_cast<char*>(data);
   while (length) {
+#if defined(__linux__)
+    const ssize_t count = writing ? send(fd, bytes, length, MSG_NOSIGNAL) : recv(fd, bytes, length, 0);
+#else
     const ssize_t count = writing ? send(fd, bytes, length, 0) : recv(fd, bytes, length, 0);
+#endif
     if (count <= 0) return false;
     bytes += count;
     length -= static_cast<unsigned>(count);

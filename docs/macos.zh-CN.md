@@ -1,6 +1,6 @@
 # macOS arm64 维护说明
 
-这是 Mac 外壳的维护路径。Windows x64 仍然从 PyPI wheel 安装。macOS 在本机已经有 `dist/js` 和 `dist/libmozglue.dylib` 之后，可以打出 `macosx_26_0_arm64` wheel。`runtime.json` 记下这份压缩包的大小、sha256 和维护者 fork Release 的 URL。这个 wheel 不上传到 PyPI。
+从 0.3.0 起，`macosx_26_0_arm64` wheel 已发布到 PyPI。它由 GitHub Actions 从 `firefox/` 子模块构建（`.github/workflows/build-macos.yml`）：SpiderMonkey、Skia 和 NSS 来自这份源码，`libnecko_core.dylib` 和 `libnecko_quic.dylib` 链接这份 NSS。这个 wheel 不带 xpcshell。没有该二进制时，`Context(proxy=...)` 先发 HTTP CONNECT，再进入 `libnecko_core`。下面的 donor 树路径仍带 xpcshell，代理继续走 Necko 偏好。已经发布的 0.3.0 wheel 不含这条隧道。
 
 同一份事实的英文版在 [macos.md](macos.md)。
 
@@ -10,7 +10,7 @@ Python API、DOM、时钟和页面逻辑仍是同一份源码。macOS 增加的�
 
 - 同一套 API：JS 上下文、DOM、Python 桥、WebCrypto 算法，以及静态图格式。
 - 可以接受的平台差异：命名管道或 Unix socket，CNG 或 CommonCrypto，WIC 或 ImageIO，DirectWrite 或 Core Text。GIF disposal、字形 gamma 和中文回退跟随系统解码器，不要求与 Windows 像素一致。
-- 这次仍不做：socket process 保持关闭。只打开偏好时，这份 xpcshell 在填写 Mac sandbox 参数时以信号 11 退出。donor 的 `plugin-container.app` 由编 `ipc/app` 得到。直连 HTTPS 经 `libnecko_core.dylib` 跟随 `Context(tls=)`，握手个数和 0.2.1 的请求头、HTTP/2 设置表都跟着走。页面复查了 100 和 159。八个边界版本是库内 GET，不是页面。代理仍走 xpcshell，这次没有重测。DNS、连接和 TLS 计时保持 0。没有 PyPI 上的 macOS wheel。`macos.url` 指向 fork Release 里的压缩包。直连明文和 HTTP/3 写在 `docs/closed-route.zh-CN.md`。
+- 这次仍不做：socket process 保持关闭。只打开偏好时，这份 xpcshell 在填写 Mac sandbox 参数时以信号 11 退出。donor 的 `plugin-container.app` 由编 `ipc/app` 得到。直连 HTTPS 经 `libnecko_core.dylib` 跟随 `Context(tls=)`，握手个数和 0.2.1 的请求头、HTTP/2 设置表都跟着走。页面复查了 100 和 159。八个边界版本是库内 GET，不是页面。有 xpcshell 时代理仍走它。没有时，HTTPS 走 CONNECT，明文走绝对形式请求；HTTP/3 不走代理。DNS、连接和 TLS 计时保持 0。PyPI 上的 wheel 不带 xpcshell。`macos.url` 指向 fork Release 里的压缩包。直连明文和 HTTP/3 写在 `docs/closed-route.zh-CN.md`。
 
 ## 各部分放在哪
 
@@ -81,7 +81,7 @@ python3.12 -B tools/bootstrap_macos_helper.py
 python3.12 -B tools/build.py --donor-obj ../firefox-159/obj-js-standalone
 ```
 
-bootstrap 安装 `requests`、`brotli`、`zstandard`、`h2`、`cryptography`、`backports.zstd` 和 `publicsuffixlist`。缺的 wheel 只来自 gitignore 的 `vendor/necko-derived/wheels`，用 `pip --no-index`。用 `curl --noproxy '*'` 从一个 simple index 镜像把 wheel 放进这个目录。目录是空的且还有缺包时，脚本停下来。脚本里不写代理地址。这一轮没有再跑 bootstrap。当前 helper 已经能导入 `publicsuffixlist`。`firefox-suffixes.dat` 放在 `necko_win/_firefox.py` 旁边，随这个目录一起复制。直连 HTTPS 用 `h2` 和 `cryptography` 配合这个库。`requests` 仍负责准备 Windows 上 oneshot 已经在用的那一帧。代理或非 HTTPS 仍走 donor xpcshell。
+bootstrap 安装 `requests`、`brotli`、`zstandard`、`h2`、`cryptography`、`backports.zstd` 和 `publicsuffixlist`。缺的 wheel 只来自 gitignore 的 `vendor/necko-derived/wheels`，用 `pip --no-index`。用 `curl --noproxy '*'` 从一个 simple index 镜像把 wheel 放进这个目录。目录是空的且还有缺包时，脚本停下来。脚本里不写代理地址。这一轮没有再跑 bootstrap。当前 helper 已经能导入 `publicsuffixlist`。`firefox-suffixes.dat` 放在 `necko_win/_firefox.py` 旁边，随这个目录一起复制。直连 HTTPS 用 `h2` 和 `cryptography` 配合这个库。`requests` 仍负责准备 Windows 上 oneshot 已经在用的那一帧。有 xpcshell 时代理仍走它。没有时，HTTPS 走 CONNECT，明文走绝对形式请求。非 HTTP 仍走 donor xpcshell。
 
 `tools/build.py` 随后把已跟踪的源码复制进 venv：
 
@@ -105,13 +105,13 @@ Windows 上同一次构建只复制 `oneshot.py`。Darwin 的 venv 不存在时�
 
 外壳二进制是 `dist/js`。跑示例时把 `RUYIJS_SHELL` 指到它，并把 `python/` 放进 `PYTHONPATH`。客户端库是 `libruyijs_client.dylib`。
 
-本地 wheel 的标签是 `macosx_26_0_arm64`。外壳放在 `_runtime/dist/js`，donor 的 xpcshell 闭包复制到 `_runtime/dist/necko`。库文件存在时，一并复制 `libnecko_quic.dylib`。wheel 里还有 `necko/closed_route.py`、`necko/core_client.py` 和 `necko_win`。wheel 和 `ruyijs-runtime-macos-arm64.zip` 放在维护者 fork 的 Release 上，不放上 PyPI。重新生成压缩包用 `python3.12 -B tools/macos_runtime.py <zip路径>`，再把打印出的 size、sha256 和 Release URL 写进 `runtime.json` 的 `macos`。
+本地 wheel 的标签是 `macosx_26_0_arm64`。外壳放在 `_runtime/dist/js`，`libnecko_core.dylib` 和 `libnecko_quic.dylib` 都是必需文件，位于 `_runtime/dist/necko`。提供 xpcshell donor 时，也会包含它的闭包。wheel 里还有 `necko/closed_route.py`、`necko/core_client.py` 和 `necko_win`。0.3.0 macOS wheel 已发布到 PyPI；本 fork 还在 Git 中保存可安装的 wheel。另行生成运行时压缩包用 `python3.12 -B tools/macos_runtime.py <zip路径>`，再把打印出的 size、sha256 和 Release URL 写进 `runtime.json` 的 `macos`。
 
-本仓库另外以普通 Git 文件在 `wheels/` 保存当前 wheel。已有 donor 构建时，执行 `python3.12 -B tools/package_macos_wheel.py` 即可重新打包；如果没有 `dist/necko/xpcshell`，传入 `--xpcshell /绝对路径/xpcshell`。脚本检查 donor 文件、wheel 内容并生成 `wheels/SHA256SUMS`。其他 macOS 26+ arm64 电脑拉取仓库后，可直接用 pip 安装 `wheels/ruyijs-0.2.1-py3-none-macosx_26_0_arm64.whl`，无需 Firefox 源码或本机原生编译。
+本仓库另外以普通 Git 文件在 `wheels/` 保存当前 wheel。已有原生构建时，执行 `python3.12 -B tools/package_macos_wheel.py` 即可重新打包；传入 `--xpcshell /绝对路径/xpcshell` 可同时打入 donor xpcshell/XUL。脚本检查 core、QUIC、wheel 内容并生成 `wheels/SHA256SUMS`。其他 macOS 26+ arm64 电脑拉取仓库后，可直接用 pip 安装 `wheels/ruyijs-0.3.0-py3-none-macosx_26_0_arm64.whl`，无需 Firefox 源码或本机原生编译。
 
 ## 一次请求怎么走
 
-长度前缀帧和 Windows 相同。macOS 上的管道是 Unix socket。外壳启动 `python -I -B -m ruyijs_necko.oneshot`。直连 HTTPS 使用 `libnecko_core.dylib`。ALPN `h2` 使用产品的 HTTP/2 设置。ALPN 为 `http/1.1` 时在这条套接字上写 HTTP/1.1。其他 ALPN 表示不了，路由可以回退。代理在该请求上保留 xpcshell。直连 `http://` 走 `libnecko_core` 里的套接字和 HTTP/1 交换。直连 `https://` 走 `libnecko_core`，直到同一进程记住了响应里的 `Alt-Svc`，下一次到该来源的请求才走 `libnecko_quic`。证书校验失败不回退。不保存 cookie。`redirectionLimit` 仍是 0，xpcshell 路径上也是，所以 3xx 就作为这次的响应返回。同一个 helper 进程里，同源 HTTP/2 可以复用一条连接。页面外壳仍是每个请求启动一次 oneshot，除非使用 `--session`。
+长度前缀帧和 Windows 相同。macOS 上的管道是 Unix socket。外壳启动 `python -I -B -m ruyijs_necko.oneshot`。直连 HTTPS 使用 `libnecko_core.dylib`。ALPN `h2` 使用产品的 HTTP/2 设置。ALPN 为 `http/1.1` 时在这条套接字上写 HTTP/1.1。其他 ALPN 表示不了，路由可以回退。有 xpcshell 时代理仍走它；没有时，HTTPS 走 CONNECT，明文走绝对形式请求。直连 `http://` 走 `libnecko_core` 里的套接字和 HTTP/1 交换。直连 `https://` 走 `libnecko_core`，直到同一进程记住了响应里的 `Alt-Svc`，下一次到该来源的请求才走 `libnecko_quic`。证书校验失败不回退。不保存 cookie。直连库路径把 3xx 返回给调用方处理；本 fork 的 xpcshell 路径允许最多 20 次重定向。同一个 helper 进程里，同源 HTTP/2 可以复用一条连接。页面外壳仍是每个请求启动一次 oneshot，除非使用 `--session`。
 
 直连 HTTPS 的页面验收过 HTTP/2，版本码 20，覆盖 100 和 159。这条套接字上的 HTTP/1.1 做过单元测试。后来的直连 TLS 检查打开了 `https://www.gnu.org/`，状态 200，版本码 11。更早的 xpcshell 路径也曾返回 HTTP/1.1。直连明文和 HTTP/3 使用与 Windows DLL 相同的导出。本机 HTTP/1.1 返回状态 200、版本码 11。本机 Neqo 服务器在记住响应 `Alt-Svc` 之后，第二次请求返回版本码 30。第二次请求的证书不受信任时失败，状态不是 200。公网 `quic.nginx.org` 同样从版本码 20 到 30，两次正文一致。`cloudflare.com` 没有下发 `Alt-Svc`，两次都停在版本码 20。请求如果落到 donor xpcshell，明文仍会返回 `necko 804b0033`。打开 socket process 后，这份 xpcshell 会关掉管道，并且不写错误。不要再写一套 QUIC。
 

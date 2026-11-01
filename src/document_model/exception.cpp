@@ -11,8 +11,10 @@
 
 namespace ruyijs::document_model {
 // Slots: 0 name, 1 message, 2 legacy code, 3 subclass value (undefined for a
-// plain DOMException; see CreateDerivedException).
-const JSClass kExceptionClass = {"DOMException", JSCLASS_HAS_RESERVED_SLOTS(4)};
+// plain DOMException; see CreateDerivedException), 4 filename, 5 line,
+// 6 column, 7 captured stack — the location surface Firefox hangs off
+// nsException (nsFrameMessageManager reads the same fields).
+const JSClass kExceptionClass = {"DOMException", JSCLASS_HAS_RESERVED_SLOTS(8)};
 bool ExceptionFields(JS::HandleObject object, JS::MutableHandleString name,
                       JS::MutableHandleString message) {
   if (JS::GetClass(object) != &kExceptionClass) return false;
@@ -53,6 +55,25 @@ bool CreateException(JSContext* cx, JS::HandleObject installed, std::u16string_v
   }
   JS::SetReservedSlot(object, 0, label);JS::SetReservedSlot(object, 1, text);
   JS::SetReservedSlot(object, 2, JS::Int32Value(code));
+  // The scripted frame that triggered the throw, exactly as Firefox reports it
+  // through nsException's filename/lineNumber/columnNumber/stack accessors.
+  JS::SetReservedSlot(object, 5, JS::Int32Value(0));
+  JS::SetReservedSlot(object, 6, JS::Int32Value(0));
+  {
+    uint32_t line = 0;
+    JS::ColumnNumberOneOrigin column;
+    JS::AutoFilename file;
+    if (JS::DescribeScriptedCaller(&file, cx, &line, &column)) {
+      JS::RootedString fileString(cx, JS_NewStringCopyZ(cx, file.get() ? file.get() : ""));
+      if (!fileString) return false;
+      JS::SetReservedSlot(object, 4, JS::StringValue(fileString));
+      JS::SetReservedSlot(object, 5, JS::Int32Value(int32_t(line)));
+      JS::SetReservedSlot(object, 6, JS::Int32Value(int32_t(column.oneOriginValue())));
+    }
+    JS::RootedObject stack(cx);
+    if (JS::CaptureCurrentStack(cx, &stack) && stack)
+      JS::SetReservedSlot(object, 7, JS::ObjectValue(*stack));
+  }
   result.setObject(*object);return true;
 }
 bool ThrowException(JSContext* cx, JS::HandleObject prototype, const char* name, const char* message) {
@@ -100,5 +121,96 @@ bool ExceptionGetter(JSContext* cx, unsigned argc, JS::Value* vp) {
     return TypeError(cx, "DOMException receiver is incompatible");
   const auto slot = js::GetFunctionNativeReserved(&args.callee(), 1).toInt32();
   args.rval().set(JS::GetReservedSlot(&args.thisv().toObject(), slot));return true;
+}
+bool ExceptionReceiver(JSContext* cx, unsigned argc, JS::Value* vp, JS::MutableHandleObject self) {
+  auto args = JS::CallArgsFromVp(argc, vp);
+  if (!args.thisv().isObject() || JS::GetClass(&args.thisv().toObject()) != &kExceptionClass)
+    return TypeError(cx, "DOMException receiver is incompatible");
+  self.set(&args.thisv().toObject());return true;
+}
+// nsException's location accessors: empty string and 0 when the throw had no
+// scripted caller (internal throws before any page frame).
+bool ExceptionFilenameGetter(JSContext* cx, unsigned argc, JS::Value* vp) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedObject self(cx);
+  if (!ExceptionReceiver(cx, argc, vp, &self)) return false;
+  const auto value = JS::GetReservedSlot(self, 4);
+  args.rval().set(value.isString() ? value : JS::StringValue(JS_NewStringCopyZ(cx, "")));
+  return true;
+}
+bool ExceptionLineGetter(JSContext* cx, unsigned argc, JS::Value* vp) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedObject self(cx);
+  if (!ExceptionReceiver(cx, argc, vp, &self)) return false;
+  args.rval().set(JS::GetReservedSlot(self, 5));return true;
+}
+bool ExceptionColumnGetter(JSContext* cx, unsigned argc, JS::Value* vp) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedObject self(cx);
+  if (!ExceptionReceiver(cx, argc, vp, &self)) return false;
+  args.rval().set(JS::GetReservedSlot(self, 6));return true;
+}
+// Error.prototype.stack formatting over the captured SavedFrame chain; the
+// same string Firefox builds lazily for nsException.stack.
+bool ExceptionStackGetter(JSContext* cx, unsigned argc, JS::Value* vp) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedObject self(cx);
+  if (!ExceptionReceiver(cx, argc, vp, &self)) return false;
+  const auto saved = JS::GetReservedSlot(self, 7);
+  JS::RootedString text(cx);
+  if (saved.isObject()) {
+    JS::RootedObject stack(cx, &saved.toObject());
+    if (!JS::BuildStackString(cx, nullptr, stack, &text, 0, js::StackFormat::SpiderMonkey)) return false;
+  } else if (!(text = JS_NewStringCopyZ(cx, ""))) return false;
+  args.rval().setString(text);return true;
+}
+// Names without a legacy code that Firefox's error table (dom/base/domerr.msg)
+// still lists; its DOMException constructor takes their nsresult from there.
+struct NamedResult { const char* name; uint32_t result; };
+constexpr NamedResult kNamedResults[] = {
+    {"NotAllowedError", 0x80530021}, {"EncodingError", 0x8053001C}, {"ParityError", 0x80750001},
+    {"UnknownError", 0x8053001E}, {"DataError", 0x8053001F}, {"OperationError", 0x80530020},
+    {"ConstraintError", 0x80660004}, {"TransactionInactiveError", 0x80660007},
+    {"ReadOnlyError", 0x80660009}, {"VersionError", 0x8066000C}, {"NotReadableError", 0x8066000D},
+    {"FileHandleInactiveError", 0x80670003}};
+// NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_DOM(14), code): the legacy numeric
+// result Firefox exposes as nsException.result (0x80530000 | code). Names
+// without a legacy code answer their kNamedResults entry, or 0 (unknown names,
+// TypeError, DOMSTRING_SIZE_ERR and friends) rather than the bare module bits.
+bool ExceptionResultGetter(JSContext* cx, unsigned argc, JS::Value* vp) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedObject self(cx);
+  if (!ExceptionReceiver(cx, argc, vp, &self)) return false;
+  const auto code = JS::GetReservedSlot(self, 2);
+  const int legacy = code.isInt32() ? code.toInt32() : 0;
+  uint32_t result = legacy ? 0x80530000u | uint32_t(legacy) : 0u;
+  const auto name = JS::GetReservedSlot(self, 0);
+  if (!legacy && name.isString()) {
+    for (const auto& entry : kNamedResults) {
+      bool same = false;
+      if (!JS_StringEqualsAscii(cx, name.toString(), entry.name, &same)) return false;
+      if (same) { result = entry.result;break; }
+    }
+  }
+  args.rval().setNumber(double(result));return true;
+}
+// nsException.data: DOMException carries no exception payload; Firefox
+// returns null here (nsIException::GetData).
+bool ExceptionDataGetter(JSContext* cx, unsigned argc, JS::Value* vp) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedObject self(cx);
+  if (!ExceptionReceiver(cx, argc, vp, &self)) return false;
+  args.rval().setNull();return true;
+}
+// [Replaceable] stack: an assignment defines an own data property on the
+// receiver ({value, writable, enumerable, configurable}, the WebIDL
+// [Replaceable] behaviour), leaving the captured frame chain untouched.
+bool ExceptionStackSetter(JSContext* cx, unsigned argc, JS::Value* vp) {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::RootedObject self(cx);
+  if (!ExceptionReceiver(cx, argc, vp, &self)) return false;
+  // A WebIDL setter returns undefined, as Firefox's does.
+  if (!JS_DefineProperty(cx, self, "stack", args.get(0), JSPROP_ENUMERATE)) return false;
+  args.rval().setUndefined();return true;
 }
 }

@@ -94,6 +94,13 @@ def _quic_library_path():
         candidate = Path(core).with_name(name)
         if candidate.is_file():
             return candidate
+    try:
+        from ruyijs._runtime_paths import get_runtime_path
+        packaged = get_runtime_path() / "dist" / "necko" / name
+        if packaged.is_file():
+            return packaged
+    except ImportError:
+        pass
     root = Path(__file__).resolve().parents[2]
     for directory in (root / "dist" / "necko_tls", root / "dist" / "necko"):
         candidate = directory / name
@@ -419,6 +426,14 @@ def _request_target(parts) -> str:
     return path
 
 
+def _absolute_target(parts) -> str:
+    host = parts.hostname.encode("idna").decode("ascii")
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = host if parts.port in (None, 80) else f"{host}:{parts.port}"
+    return f"http://{netloc}{_request_target(parts)}"
+
+
 def _wire_headers(parts, headers, body: bytes):
     fields = []
     seen_host = False
@@ -463,8 +478,15 @@ def _core_library_path():
     override = os.environ.get("NECKO_CORE_LIBRARY", "")
     if override:
         return Path(override)
-    root = Path(__file__).resolve().parents[2]
     name = "necko_core.dll" if os.name == "nt" else "libnecko_core.dylib"
+    try:
+        from ruyijs._runtime_paths import get_runtime_path
+        packaged = get_runtime_path() / "dist" / "necko" / name
+        if packaged.is_file():
+            return packaged
+    except ImportError:
+        pass
+    root = Path(__file__).resolve().parents[2]
     for directory in (root / "dist" / "necko_tls", root / "dist" / "necko"):
         candidate = directory / name
         if candidate.is_file():
@@ -642,7 +664,15 @@ def cleartext_fetch(method, url, headers, body, budget_s):
     parts = urlsplit(url)
     if parts.scheme != "http" or not parts.hostname:
         raise NeckoError("cleartext fetch is direct HTTP only")
-    target = _request_target(parts)
+    from necko.client import proxy_endpoint
+
+    proxy = proxy_endpoint()
+    if proxy is None:
+        connect_host, connect_port = parts.hostname, parts.port or 80
+        target = _request_target(parts)
+    else:
+        connect_host, connect_port = proxy
+        target = _absolute_target(parts)
     if "\x00" in method or "\x00" in target:
         raise NeckoError("Invalid native request framing")
     payload = body or b""
@@ -650,7 +680,7 @@ def cleartext_fetch(method, url, headers, body, budget_s):
         payload = payload.encode("utf-8")
     header_block = "\r\n".join(_wire_headers(parts, headers, payload)) + "\r\n"
     native = _NativeCleartext(
-        _load_core(), parts.hostname, parts.port or 80, budget_s
+        _load_core(), connect_host, connect_port, budget_s
     )
     try:
         native.open_exchange(method, target, header_block)

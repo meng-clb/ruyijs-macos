@@ -2,7 +2,40 @@
 
 import json
 import re
+import sys
 from provenance import write_if_changed
+
+# Units only the Linux build compiles: the FreeType/Fontconfig/HarfBuzz fonts,
+# OpenSSL WebCrypto and the codec/composition on Firefox's Skia
+# (web_geometry/font_posix.cpp and the rest; tools/build_linux.py).
+LINUX_ONLY = frozenset({
+    "web_crypto/openssl_backend.cpp",
+    "web_geometry/font_posix.cpp", "web_geometry/svg_path_posix.cpp",
+    "web_media/image_codec_native.cpp", "web_media/image_composition_posix.cpp",
+})
+# Units Linux replaces with those: the DirectWrite / Core Text fonts, CNG /
+# CommonCrypto WebCrypto, WIC / ImageIO codecs, and the stubs that complete the
+# prebuilt Skia archive (Linux compiles Firefox's Skia sources instead).
+NOT_LINUX = frozenset({
+    "web_crypto/cng_backend.cpp", "web_crypto/digest_backend.cpp",
+    "web_geometry/font_aliases.cpp", "web_geometry/font_collection.cpp",
+    "web_geometry/font_face_mac.cpp", "web_geometry/font_missing.cpp",
+    "web_geometry/font_preferences.cpp", "web_geometry/font_shaping.cpp",
+    "web_geometry/system_font.cpp", "web_geometry/canvas_text.cpp",
+    "web_geometry/canvas_text_path.cpp", "web_geometry/glyph_color.cpp",
+    "web_geometry/glyph_mask.cpp", "web_geometry/glyph_palette.cpp",
+    "web_geometry/glyph_runs.cpp", "web_geometry/glyph_style.cpp",
+    "web_geometry/svg_length_font.cpp", "web_geometry/svg_path.cpp",
+    "web_media/image_codec.cpp", "web_media/image_gif.cpp",
+    "web_media/image_composition.cpp", "web_media/image_color.cpp",
+    "web_canvas/skia_subset_stubs.cpp",
+})
+
+
+def platform_unit(relative, platform=None):
+    """Whether src/<relative> is compiled for `platform` (sys.platform)."""
+    linux = (platform or sys.platform).startswith("linux")
+    return relative not in (NOT_LINUX if linux else LINUX_ONLY)
 
 # Domains compiled into dist/js.exe. Adding a src/<domain>/ directory without
 # listing it here is rejected by domains(); see docs/owners/BUILD_COVERAGE.md.
@@ -92,6 +125,8 @@ def sources(root):
             raise ValueError(f"src/{domain} has unbuilt nested sources: "
                              + ", ".join(nested))
         for path in sorted(directory.glob("*.cpp")):
+            if not platform_unit(f"{domain}/{path.name}"):
+                continue
             result.append((path, domain + "_" + path.stem))
     if not any(name.startswith("runtime_") for _, name in result):
         raise ValueError("src/runtime must contain implementation files")
@@ -135,8 +170,8 @@ OPTIONAL_PROFILE_GROUPS = ("webgl", "webgpu", "permissions", "geolocation", "spe
                            "storage", "media")
 
 
-def profile(root, directory):
-    source = root / "profiles/firefox-environment.json"
+def profile(root, directory, name="firefox-environment.json"):
+    source = root / "profiles" / name
     data = source.read_text(encoding="utf-8")
     parsed = json.loads(data)
     if (not isinstance(parsed, dict)
@@ -148,7 +183,7 @@ def profile(root, directory):
         raise ValueError("profile collides with its C++ raw-string delimiter")
     target = directory / "firefox_environment_profile.h"
     write_if_changed(target,
-        '// Generated from profiles/firefox-environment.json. Do not edit.\n'
+        f'// Generated from profiles/{name}. Do not edit.\n'
         '#pragma once\nnamespace ruyijs::browser_environment {\n'
         f'inline constexpr char kFirefoxEnvironmentProfile[] = R"{delimiter}('
         f'{data}){delimiter}";\n}}\n', encoding="utf-8")

@@ -16,6 +16,7 @@ own, and every other reference resolves to the identical jsrust definition.
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 
 
@@ -40,6 +41,8 @@ def strong_globals(nm, path):
 
 def privatize(native, library, directory, jsrust):
     """Rename std globals that donor jsrust also defines; return the renames."""
+    if native.donor.os_arch == 'Linux':
+        return privatize_linux(library, directory, jsrust)
     tools = Path(native.librarian()[0]).parent
     nm, ar, objcopy = (str(tools / name) for name in ('llvm-nm.exe', 'llvm-ar.exe', 'llvm-objcopy.exe'))
     members = subprocess.run([ar, 't', str(library)], capture_output=True, text=True, check=True).stdout.split()
@@ -57,6 +60,28 @@ def privatize(native, library, directory, jsrust):
     return renames
 
 
+def privatize_linux(library, directory, jsrust):
+    """The ELF staticlib may split std into several codegen-unit objects."""
+    nm, ar, objcopy = (shutil.which(name) for name in ('nm', 'ar', 'objcopy'))
+    members = subprocess.run([ar, 't', str(library)], capture_output=True, text=True, check=True).stdout.split()
+    std = [m for m in members if m.startswith('std-') and m.endswith('.o')]
+    if not std:
+        raise ValueError('rust runtime holds no std object')
+    existing = strong_globals(nm, jsrust)
+    renames = {}
+    for member in std:
+        subprocess.run([ar, 'x', str(library), member], cwd=directory, check=True)
+        obj = directory / member
+        shared = sorted(strong_globals(nm, obj) & existing)
+        names = {name: 'ruyijs_private_' + hashlib.sha256(name.encode()).hexdigest()[:16] for name in shared}
+        if names:
+            subprocess.run([objcopy, *[f'--redefine-sym={a}={b}' for a, b in names.items()], str(obj)], check=True)
+            subprocess.run([ar, 'r', str(library), member], cwd=directory, check=True)
+            renames.update(names)
+        obj.unlink()
+    return renames
+
+
 def build(native):
     if not donor_lto(native.donor):
         return []
@@ -67,18 +92,21 @@ def build(native):
         rustc = rustc[0]
     if not Path(rustc).is_file():
         raise RuntimeError('The configured donor rustc is required: ' + rustc)
-    jsrust = [p for p in native.donor.libraries() if p.name == 'jsrust.lib']
+    linux = native.donor.os_arch == 'Linux'
+    jsrust_name = 'libjsrust.a' if linux else 'jsrust.lib'
+    jsrust = [p for p in native.donor.libraries() if p.name == jsrust_name]
     if len(jsrust) != 1:
-        raise ValueError('donor must link exactly one jsrust.lib')
+        raise ValueError('donor must link exactly one ' + jsrust_name)
     version = subprocess.run([rustc, '--version'], capture_output=True, text=True, check=True).stdout
     # Same codegen as the rlibs that depend on it (compression_native/urlpattern).
-    command = [rustc, '--edition=2021', '--target=x86_64-pc-windows-msvc', '--crate-type=staticlib',
+    target = 'x86_64-unknown-linux-gnu' if linux else 'x86_64-pc-windows-msvc'
+    command = [rustc, '--edition=2021', '--target=' + target, '--crate-type=staticlib',
                '--crate-name=ruyijs_rust_runtime', '-C', 'opt-level=2', '-C', 'panic=abort',
                '-C', 'target-feature=-crt-static', '-C', 'codegen-units=1']
     identity = {'builder': digest(__file__), 'rustc': version, 'rustcSHA256': digest(rustc),
                 'jsrustSHA256': digest(jsrust[0]), 'command': command[1:]}
     signature = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
-    library = directory / 'ruyijs_rust_runtime.lib'
+    library = directory / ('libruyijs_rust_runtime.a' if linux else 'ruyijs_rust_runtime.lib')
     stamp = directory / 'build.json'
     if stamp.is_file():
         old = json.loads(stamp.read_text('utf8'))
