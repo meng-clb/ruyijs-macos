@@ -13,7 +13,7 @@
 - [x] Adapt the in-repository wheel packaging script to 0.3.0's optional xpcshell and Darwin adapter layout. Require both core and QUIC native libraries; validate wheel members and Git's 100 MiB single-file limit.
 - [x] Build the updated Mac runtime from the local Firefox 159 donor, build the 0.3.0 wheel, record SHA-256, and install it in a fresh environment outside the checkout.
 - [x] Run smoke, local network/proxy/HTTP3, Mac integration and Cloudflare-related offline signal tests. Windows archive identity was verified; Windows execution requires a Windows host.
-- [ ] Commit a reviewable diff and merge it into the local `main`. The current request targets local files; pushing `origin` is a separate step.
+- [x] Commit a reviewable diff (`71caea6`) and merge it into the local `main`. The current request targets local files; pushing `origin` is a separate step.
 
 ## Validation and rollback
 
